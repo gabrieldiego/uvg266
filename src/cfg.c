@@ -1346,8 +1346,8 @@ int uvg_config_parse(uvg_config *cfg, const char *name, const char *value)
     cfg->rdoq_skip = atobool(value);
   }
   else if OPT("input-format") {
-    static enum uvg_input_format const formats[] = { UVG_FORMAT_P400, UVG_FORMAT_P420 };
-    static const char * const format_names[] = { "P400", "P420", NULL };
+    static enum uvg_input_format const formats[] = { UVG_FORMAT_P400, UVG_FORMAT_P420, UVG_FORMAT_P422, UVG_FORMAT_P444};
+    static const char * const format_names[] = { "P400", "P420", "P422", "P444", NULL };
 
     int8_t format = 0;
     if (!parse_enum(value, format_names, &format)) {
