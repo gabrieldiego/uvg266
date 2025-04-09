@@ -124,9 +124,9 @@ void uvg_calc_seq_stats(struct encoder_state_t* const state, const videoframe_t*
 
   int32_t m_binNum = PIC_CODE_CW_BINS;
   uvg_pixel* picY = &frame->source->y[0];
-  const uint32_t width = frame->source->width;
-  const uint32_t height = frame->source->height;
-  const uint32_t stride = frame->source->stride;
+  const int32_t width = frame->source->width_luma;
+  const int32_t height = frame->source->height_luma;
+  const int32_t stride = frame->source->stride_luma;
   uint32_t winLens = (aps->m_binNum == PIC_CODE_CW_BINS) ? (MIN(height, width) / 240) : 2;
   winLens = winLens > 0 ? winLens : 1;
 
@@ -333,7 +333,7 @@ void uvg_calc_seq_stats(struct encoder_state_t* const state, const videoframe_t*
     stats->weightNorm += stats->binHist[b] * stats->normVar[b];
   }
 
-  picY = &frame->source->y[CU_TO_PIXEL(0, 0, 0, frame->source->stride)];
+  picY = &frame->source->y[CU_TO_PIXEL(0, 0, 0, frame->source->stride_luma)];
   double avgY = 0.0;
   double varY = 0.0;
   for (uint32_t y = 0; y < height; y++)
@@ -353,11 +353,11 @@ void uvg_calc_seq_stats(struct encoder_state_t* const state, const videoframe_t*
     // ToDo: Handle other than YUV 4:2:0
     assert(encoder->chroma_format == UVG_CSP_420);
 
-    uvg_pixel* picU = &frame->source->u[CU_TO_PIXEL(0, 0, 0, frame->source->stride/2)];
-    uvg_pixel* picV = &frame->source->v[CU_TO_PIXEL(0, 0, 0, frame->source->stride / 2)];
-    const int widthC = frame->source->width/2;
-    const int heightC = frame->source->height/2;
-    const int strideC = frame->source->stride/2;
+    uvg_pixel* picU = &frame->source->u[CU_TO_PIXEL(0, 0, 0, frame->source->stride_chroma)];
+    uvg_pixel* picV = &frame->source->v[CU_TO_PIXEL(0, 0, 0, frame->source->stride_chroma)];
+    const int widthC = frame->source->width_chroma;
+    const int heightC = frame->source->height_chroma;
+    const int strideC = frame->source->stride_chroma;
 
 
     double avgU = 0.0, avgV = 0.0;
@@ -1083,9 +1083,9 @@ void uvg_lmcs_preanalyzer(struct encoder_state_t* const state, const videoframe_
       {
         aps->m_binNum = PIC_CODE_CW_BINS;
         uvg_pixel* picY = &frame->source->y[0];
-        const uint32_t width = frame->source->width;
-        const uint32_t height = frame->source->height;
-        const uint32_t stride = frame->source->stride;
+        const uint32_t width = frame->source->width_luma;
+        const uint32_t height = frame->source->height_luma;
+        const uint32_t stride = frame->source->stride_luma;
         uint32_t binCnt[PIC_CODE_CW_BINS] = { 0 };
         
         uvg_init_lmcs_seq_stats(&aps->m_srcSeqStats, aps->m_binNum);
@@ -1128,9 +1128,9 @@ void uvg_lmcs_preanalyzer(struct encoder_state_t* const state, const videoframe_
 
           uvg_pixel* picU = &frame->source->u[0];
           uvg_pixel* picV = &frame->source->v[0];
-          const uint32_t widthC = frame->source->width>>1;
-          const uint32_t heightC = frame->source->height>>1;
-          const uint32_t strideC = frame->source->stride>>1;
+          const uint32_t widthC = frame->source->width_chroma;
+          const uint32_t heightC = frame->source->height_chroma;
+          const uint32_t strideC = frame->source->stride_chroma;
           double avgU = 0.0, avgV = 0.0;
           double varU = 0.0, varV = 0.0;
           for (uint32_t y = 0; y < heightC; y++)
@@ -1476,7 +1476,7 @@ int uvg_calculate_lmcs_chroma_adj_vpdu_nei(encoder_state_t* const state, lmcs_ap
     bool above_cu = (y_in_lcu > 0);
     
    
-    int strideY = state->tile->frame->rec_lmcs->stride;
+    int strideY = state->tile->frame->rec_lmcs->stride_luma;
     int chromaScale = (1 << CSCALE_FP_PREC);
     int lumaValue = -1;
 

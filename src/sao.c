@@ -311,11 +311,21 @@ void uvg_sao_reconstruct(const encoder_state_t *state,
 {
   const encoder_control_t *const ctrl = state->encoder_control;
   videoframe_t *const frame = state->tile->frame;
-  const int shift = color == COLOR_Y ? 0 : 1;
 
-  const int frame_width = frame->width >> shift;
-  const int frame_height = frame->height >> shift;
-  const int frame_stride = frame->rec->stride >> shift;
+  int32_t frame_width;
+  int32_t frame_height;
+  int32_t frame_stride;
+ 
+  if (color == COLOR_Y) {
+    frame_width  = frame->width;
+    frame_height = frame->height;
+    frame_stride = frame->rec->stride_luma;
+  } else {
+    frame_width = frame->width >> frame->rec->chroma_scale_x;
+    frame_height = frame->height >> frame->rec->chroma_scale_y;
+    frame_stride = frame->rec->stride_chroma;
+  }
+
   uvg_pixel *output = &frame->rec->data[color][frame_x + frame_y * frame_stride];
 
   if (sao->type == SAO_TYPE_EDGE) {
@@ -624,12 +634,12 @@ static void sao_search_chroma(const encoder_state_t * const state, const videofr
 
   // Copy data to temporary buffers and init orig and rec lists to point to those buffers.
   for (color_i = COLOR_U; color_i <= COLOR_V; ++color_i) {
-    uvg_pixel *data = &frame->source->data[color_i][CU_TO_PIXEL(x_ctb, y_ctb, 1, frame->source->stride / 2)];
-    uvg_pixel *recdata = &frame->rec->data[color_i][CU_TO_PIXEL(x_ctb, y_ctb, 1, frame->rec->stride / 2)];
+    uvg_pixel *data = &frame->source->data[color_i][CU_TO_PIXEL(x_ctb, y_ctb, 1, frame->source->stride_chroma)];
+    uvg_pixel *recdata = &frame->rec->data[color_i][CU_TO_PIXEL(x_ctb, y_ctb, 1, frame->rec->stride_chroma)];
     uvg_pixels_blit(data, orig[color_i - 1], block_width, block_height,
-                        frame->source->stride / 2, block_width);
+                        frame->source->stride_chroma, block_width);
     uvg_pixels_blit(recdata, rec[color_i - 1], block_width, block_height,
-                        frame->rec->stride / 2, block_width);
+                        frame->rec->stride_chroma , block_width);
     orig_list[color_i - 1] = &orig[color_i - 1][0];
     rec_list[color_i - 1] = &rec[color_i - 1][0];
   }
@@ -644,8 +654,8 @@ static void sao_search_luma(const encoder_state_t * const state, const videofram
   uvg_pixel rec[LCU_LUMA_SIZE];
   const uvg_pixel * orig_list[1] = { NULL };
   const uvg_pixel * rec_list[1] = { NULL };
-  uvg_pixel *data = &frame->source->y[CU_TO_PIXEL(x_ctb, y_ctb, 0, frame->source->stride)];
-  uvg_pixel *recdata = &frame->rec->y[CU_TO_PIXEL(x_ctb, y_ctb, 0, frame->rec->stride)];
+  uvg_pixel *data = &frame->source->y[CU_TO_PIXEL(x_ctb, y_ctb, 0, frame->source->stride_luma)];
+  uvg_pixel *recdata = &frame->rec->y[CU_TO_PIXEL(x_ctb, y_ctb, 0, frame->rec->stride_luma)];
   int block_width = LCU_WIDTH;
   int block_height = LCU_WIDTH;
 
@@ -660,8 +670,8 @@ static void sao_search_luma(const encoder_state_t * const state, const videofram
   sao->type = SAO_TYPE_EDGE;
 
   // Fill temporary buffers with picture data.
-  uvg_pixels_blit(data, orig, block_width, block_height, frame->source->stride, block_width);
-  uvg_pixels_blit(recdata, rec, block_width, block_height, frame->rec->stride, block_width);
+  uvg_pixels_blit(data, orig, block_width, block_height, frame->source->stride_luma, block_width);
+  uvg_pixels_blit(recdata, rec, block_width, block_height, frame->rec->stride_luma, block_width);
 
   orig_list[0] = orig;
   rec_list[0] = rec;

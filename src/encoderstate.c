@@ -117,7 +117,7 @@ static void encoder_state_recdata_before_sao_to_bufs(
       length += DEBLOCK_DELAY_PX;
     }
 
-    const unsigned from_index = pos.x + pos.y * frame->rec->stride;
+    const unsigned from_index = pos.x + pos.y * frame->rec->stride_luma;
     // NOTE: The horizontal buffer is indexed by
     //    x_px + y_lcu * frame->width
     // where x_px is in pixels and y_lcu in number of LCUs.
@@ -126,23 +126,24 @@ static void encoder_state_recdata_before_sao_to_bufs(
     uvg_pixels_blit(&frame->rec->y[from_index],
                     &hor_buf->y[to_index],
                     length, 1,
-                    frame->rec->stride,
+                    frame->rec->stride_luma,
                     frame->width);
 
     if (state->encoder_control->chroma_format != UVG_CSP_400) {
-      const unsigned from_index_c = (pos.x / 2) + (pos.y / 2) * frame->rec->stride / 2;
-      const unsigned to_index_c = (pos.x / 2) + lcu->position.y * frame->width / 2;
+      const unsigned from_index_c = (pos.x >> frame->rec->chroma_scale_x) + (pos.y >> frame->rec->chroma_scale_y) * frame->rec->stride_chroma;
+      const unsigned to_index_c = (pos.x >> frame->rec->chroma_scale_x) + lcu->position.y * (frame->width >> frame->rec->chroma_scale_x);
 
       uvg_pixels_blit(&frame->rec->u[from_index_c],
                       &hor_buf->u[to_index_c],
-                      length / 2, 1,
-                      frame->rec->stride / 2,
-                      frame->width / 2);
+                      length >> frame->rec->chroma_scale_x, 1,
+                      frame->rec->stride_chroma,
+                      frame->width >> frame->rec->chroma_scale_x);
+
       uvg_pixels_blit(&frame->rec->v[from_index_c],
                       &hor_buf->v[to_index_c],
-                      length / 2, 1,
-                      frame->rec->stride / 2,
-                      frame->width / 2);
+                      length >> frame->rec->chroma_scale_x, 1,
+                      frame->rec->stride_chroma,
+                      frame->width >> frame->rec->chroma_scale_x);
     }
   }
 
@@ -166,7 +167,7 @@ static void encoder_state_recdata_before_sao_to_bufs(
       length += DEBLOCK_DELAY_PX;
     }
 
-    const unsigned from_index = pos.x + pos.y * frame->rec->stride;
+    const unsigned from_index = pos.x + pos.y * frame->rec->stride_luma;
     // NOTE: The vertical buffer is indexed by
     //    x_lcu * frame->height + y_px
     // where x_lcu is in number of LCUs and y_px in pixels.
@@ -175,20 +176,20 @@ static void encoder_state_recdata_before_sao_to_bufs(
     uvg_pixels_blit(&frame->rec->y[from_index],
                     &ver_buf->y[to_index],
                     1, length,
-                    frame->rec->stride, 1);
+                    frame->rec->stride_luma, 1);
 
     if (state->encoder_control->chroma_format != UVG_CSP_400) {
-      const unsigned from_index_c = (pos.x / 2) + (pos.y / 2) * frame->rec->stride / 2;
-      const unsigned to_index_c = lcu->position.x * frame->height / 2 + pos.y / 2;
+      const unsigned from_index_c = (pos.x >> frame->rec->chroma_scale_x) + (pos.y >> frame->rec->chroma_scale_y) * frame->rec->stride_chroma;
+      const unsigned to_index_c = lcu->position.x * (frame->height >> frame->rec->chroma_scale_y) + (pos.y >> frame->rec->chroma_scale_y);
 
       uvg_pixels_blit(&frame->rec->u[from_index_c],
                       &ver_buf->u[to_index_c],
-                      1, length / 2,
-                      frame->rec->stride / 2, 1);
+                      1, length >> frame->rec->chroma_scale_x,
+                      frame->rec->stride_chroma, 1);
       uvg_pixels_blit(&frame->rec->v[from_index_c],
                       &ver_buf->v[to_index_c],
-                      1, length / 2,
-                      frame->rec->stride / 2, 1);
+                      1, length >> frame->rec->chroma_scale_x,
+                      frame->rec->stride_chroma, 1);
     }
   }
 }
@@ -205,26 +206,27 @@ static void encoder_state_recdata_to_bufs(encoder_state_t * const state,
     vector2d_t bottom = { lcu->position_px.x, lcu->position_px.y + lcu->size.y - 1 };
     const int lcu_row = lcu->position.y;
 
-    unsigned from_index = bottom.y * frame->rec->stride + bottom.x;
+    unsigned from_index = bottom.y * frame->rec->stride_luma + bottom.x;
     unsigned to_index = lcu->position_px.x + lcu_row * frame->width;
     
     uvg_pixels_blit(&frame->rec->y[from_index],
                     &hor_buf->y[to_index],
                     lcu->size.x, 1,
-                    frame->rec->stride, frame->width);
+                    frame->rec->stride_luma, frame->width);
 
     if (state->encoder_control->chroma_format != UVG_CSP_400) {
-      unsigned from_index_c = (bottom.y / 2) * frame->rec->stride / 2 + (bottom.x / 2);
-      unsigned to_index_c = lcu->position_px.x / 2 + lcu_row * frame->width / 2;
+      unsigned from_index_c = (bottom.y >> frame->rec->chroma_scale_y) * (frame->rec->stride_chroma) + (bottom.x >> frame->rec->chroma_scale_x);
+      unsigned to_index_c = (lcu->position_px.x >> frame->rec->chroma_scale_x) + lcu_row * (frame->width >> frame->rec->chroma_scale_x);
 
       uvg_pixels_blit(&frame->rec->u[from_index_c],
                       &hor_buf->u[to_index_c],
-                      lcu->size.x / 2, 1, 
-                      frame->rec->stride / 2, frame->width / 2);
+                      lcu->size.x >> frame->rec->chroma_scale_x, 1, 
+                      frame->rec->stride_chroma, frame->width >> frame->rec->chroma_scale_x);
+
       uvg_pixels_blit(&frame->rec->v[from_index_c],
                       &hor_buf->v[to_index_c],
-                      lcu->size.x / 2, 1,
-                      frame->rec->stride / 2, frame->width / 2);
+                      lcu->size.x >> frame->rec->chroma_scale_x, 1,
+                      frame->rec->stride_chroma, frame->width >> frame->rec->chroma_scale_x);
     }
   }
   
@@ -234,23 +236,24 @@ static void encoder_state_recdata_to_bufs(encoder_state_t * const state,
     const int lcu_col = lcu->position.x;
     vector2d_t left = { lcu->position_px.x + lcu->size.x - 1, lcu->position_px.y };
     
-    uvg_pixels_blit(&frame->rec->y[left.y * frame->rec->stride + left.x],
+    uvg_pixels_blit(&frame->rec->y[left.y * frame->rec->stride_luma + left.x],
                     &ver_buf->y[lcu->position_px.y + lcu_col * frame->height],
                     1, lcu->size.y,
-                    frame->rec->stride, 1);
+                    frame->rec->stride_luma, 1);
 
     if (state->encoder_control->chroma_format != UVG_CSP_400) {
-      unsigned from_index = (left.y / 2) * frame->rec->stride / 2 + (left.x / 2);
-      unsigned to_index = lcu->position_px.y / 2 + lcu_col * frame->height / 2;
+      unsigned from_index = (left.y >> frame->rec->chroma_scale_y) * frame->rec->stride_chroma + (left.x >> frame->rec->chroma_scale_x);
+      unsigned to_index = (lcu->position_px.y >> frame->rec->chroma_scale_y) + lcu_col * (frame->height >> frame->rec->chroma_scale_y);
 
       uvg_pixels_blit(&frame->rec->u[from_index],
                       &ver_buf->u[to_index],
-                      1, lcu->size.y / 2,
-                      frame->rec->stride / 2, 1);
+                      1, lcu->size.y >> frame->rec->chroma_scale_y,
+                      frame->rec->stride_chroma, 1);
+
       uvg_pixels_blit(&frame->rec->v[from_index],
                       &ver_buf->v[to_index],
-                      1, lcu->size.y / 2,
-                      frame->rec->stride / 2, 1);
+                      1, lcu->size.y >> frame->rec->chroma_scale_y,
+                      frame->rec->stride_chroma, 1);
     }
   }
 
@@ -288,20 +291,21 @@ static void encoder_state_recdata_to_bufs(encoder_state_t * const state,
     const uint32_t ibc_block_width = MIN(LCU_WIDTH, (state->tile->frame->width-lcu->position_px.x));
     const uint32_t ibc_block_height = MIN(LCU_WIDTH, (state->tile->frame->height-lcu->position_px.y));
 
-    uvg_pixels_blit(&frame->rec->y[lcu->position_px.y * frame->rec->stride + lcu->position_px.x],
+    uvg_pixels_blit(&frame->rec->y[lcu->position_px.y * frame->rec->stride_luma + lcu->position_px.x],
                     &frame->ibc_buffer_y[ibc_buffer_row][ibc_buffer_pos_x],
                     ibc_block_width, ibc_block_height,
-                    frame->rec->stride, IBC_BUFFER_WIDTH);
+                    frame->rec->stride_luma, IBC_BUFFER_WIDTH);
 
     if (state->encoder_control->chroma_format != UVG_CSP_400) {
-       uvg_pixels_blit(&frame->rec->u[(lcu->position_px.y >> 1) * (frame->rec->stride >> 1) + (lcu->position_px.x >> 1)],
+       uvg_pixels_blit(&frame->rec->u[(lcu->position_px.y >> frame->rec->chroma_scale_y) * (frame->rec->stride_chroma) + (lcu->position_px.x >> frame->rec->chroma_scale_x)],
                        &frame->ibc_buffer_u[ibc_buffer_row][ibc_buffer_pos_x_c],
-                       ibc_block_width>>1, ibc_block_height>>1,
-                       frame->rec->stride >> 1, IBC_BUFFER_WIDTH_C);
-       uvg_pixels_blit(&frame->rec->v[(lcu->position_px.y >> 1) * (frame->rec->stride >> 1) + (lcu->position_px.x >> 1)],
+                       ibc_block_width >> frame->rec->chroma_scale_x, ibc_block_height >> frame->rec->chroma_scale_y,
+                       frame->rec->stride_chroma, IBC_BUFFER_WIDTH_C);
+
+       uvg_pixels_blit(&frame->rec->v[(lcu->position_px.y >> frame->rec->chroma_scale_y) * (frame->rec->stride_chroma) + (lcu->position_px.x >> frame->rec->chroma_scale_x)],
                        &frame->ibc_buffer_v[ibc_buffer_row][ibc_buffer_pos_x_c],
-                       ibc_block_width>>1, ibc_block_height>>1,
-                       frame->rec->stride >> 1, IBC_BUFFER_WIDTH_C);
+                       ibc_block_width >> frame->rec->chroma_scale_x, ibc_block_height >> frame->rec->chroma_scale_y,
+                       frame->rec->stride_chroma, IBC_BUFFER_WIDTH_C);
 
      }
   }
@@ -391,19 +395,19 @@ static void encoder_sao_reconstruct(const encoder_state_t *const state,
                     frame->width,
                     SAO_BUF_WIDTH);
     if (state->encoder_control->chroma_format != UVG_CSP_400) {
-      const int from_index_c = (lcu->position_px.x + x_offsets[0])/2 - border_left +
-                               (lcu->position.y - 1) * frame->width/2;
+      const int from_index_c = ((lcu->position_px.x + x_offsets[0]) >> frame->rec->chroma_scale_x) - border_left +
+                               (lcu->position.y - 1) * (frame->width >> frame->rec->chroma_scale_x);
       uvg_pixels_blit(&state->tile->hor_buf_before_sao->u[from_index_c],
                       &sao_buf_u[border_index_c],
-                      width/2 + border_left + border_right,
+                      (width >> frame->rec->chroma_scale_x) + border_left + border_right,
                       1,
-                      frame->width/2,
+                      frame->width >> frame->rec->chroma_scale_x,
                       SAO_BUF_WIDTH_C);
       uvg_pixels_blit(&state->tile->hor_buf_before_sao->v[from_index_c],
                       &sao_buf_v[border_index_c],
-                      width/2 + border_left + border_right,
+                      (width >> frame->rec->chroma_scale_x) + border_left + border_right,
                       1,
-                      frame->width/2,
+                      frame->width >> frame->rec->chroma_scale_x,
                       SAO_BUF_WIDTH_C);
     }
   }
@@ -417,18 +421,18 @@ static void encoder_sao_reconstruct(const encoder_state_t *const state,
                     1,
                     SAO_BUF_WIDTH);
     if (state->encoder_control->chroma_format != UVG_CSP_400) {
-      const int from_index_c = (lcu->position.x - 1) * frame->height/2 +
-                               (lcu->position_px.y + y_offsets[0])/2 - border_above;
+      const int from_index_c = ((lcu->position.x - 1) * frame->height >> frame->rec->chroma_scale_y) +
+                               ((lcu->position_px.y + y_offsets[0]) >> frame->rec->chroma_scale_y) - border_above;
       uvg_pixels_blit(&state->tile->ver_buf_before_sao->u[from_index_c],
                       &sao_buf_u[border_index_c],
                       1,
-                      height/2 + border_above + border_below,
+                      (height >> frame->rec->chroma_scale_y) + border_above + border_below,
                       1,
                       SAO_BUF_WIDTH_C);
       uvg_pixels_blit(&state->tile->ver_buf_before_sao->v[from_index_c],
                       &sao_buf_v[border_index_c],
                       1,
-                      height/2 + border_above + border_below,
+                      (height >> frame->rec->chroma_scale_y) + border_above + border_below,
                       1,
                       SAO_BUF_WIDTH_C);
     }
@@ -436,29 +440,31 @@ static void encoder_sao_reconstruct(const encoder_state_t *const state,
   // Copy pixels that will be filtered and bordering pixels from right and
   // below.
   const int from_index = (lcu->position_px.x + x_offsets[0]) +
-                         (lcu->position_px.y + y_offsets[0]) * frame->rec->stride;
+                         (lcu->position_px.y + y_offsets[0]) * frame->rec->stride_luma;
   const int to_index = x_offsets[0] + y_offsets[0] * SAO_BUF_WIDTH;
   uvg_pixels_blit(&frame->rec->y[from_index],
                   &sao_buf_y[to_index],
                   width + border_right,
                   height + border_below,
-                  frame->rec->stride,
+                  frame->rec->stride_luma,
                   SAO_BUF_WIDTH);
   if (state->encoder_control->chroma_format != UVG_CSP_400) {
-    const int from_index_c = (lcu->position_px.x + x_offsets[0])/2 +
-                             (lcu->position_px.y + y_offsets[0])/2 * frame->rec->stride/2;
-    const int to_index_c = x_offsets[0]/2 + y_offsets[0]/2 * SAO_BUF_WIDTH_C;
+    const int from_index_c = ((lcu->position_px.x + x_offsets[0]) >> frame->rec->chroma_scale_x) +
+                             ((lcu->position_px.y + y_offsets[0]) >> frame->rec->chroma_scale_y) * frame->rec->stride_chroma;
+    const int to_index_c = (x_offsets[0] >> frame->rec->chroma_scale_x) + (y_offsets[0] >> frame->rec->chroma_scale_y) * SAO_BUF_WIDTH_C;
+
     uvg_pixels_blit(&frame->rec->u[from_index_c],
                     &sao_buf_u[to_index_c],
-                    width/2 + border_right,
-                    height/2 + border_below,
-                    frame->rec->stride/2,
+                    (width >> frame->rec->chroma_scale_x) + border_right,
+                    (height >> frame->rec->chroma_scale_y) + border_below,
+                    frame->rec->stride_chroma,
                     SAO_BUF_WIDTH_C);
+
     uvg_pixels_blit(&frame->rec->v[from_index_c],
                     &sao_buf_v[to_index_c],
-                    width/2 + border_right,
-                    height/2 + border_below,
-                    frame->rec->stride/2,
+                    (width >> frame->rec->chroma_scale_x) + border_right,
+                    (height >> frame->rec->chroma_scale_y) + border_below,
+                    frame->rec->stride_chroma,
                     SAO_BUF_WIDTH_C);
   }
 
@@ -704,10 +710,10 @@ static void set_joint_cb_cr_modes(encoder_state_t* state, uvg_picture* pic)
 
   if (state->encoder_control->chroma_format != UVG_CSP_400)
   {
-    const int       x1 = pic->width / 2 - 1;
-    const int       y1 = pic->height / 2 - 1;
-    const int       cbs = pic->stride / 2;
-    const int       crs = pic->stride / 2;
+    const int32_t   x1 = (pic->width_chroma) - 1;
+    const int32_t   y1 = (pic->height_chroma) - 1;
+    const int32_t   cbs = pic->stride_chroma;
+    const int32_t   crs = pic->stride_chroma;
     const uvg_pixel* p_cb = pic->u + 1 * cbs;
     const uvg_pixel* p_cr = pic->v + 1 * crs;
     int64_t         sum_cb_cr = 0;
@@ -770,27 +776,27 @@ static void encoder_state_worker_encode_lcu_search(void * opaque)
     const uint32_t ibc_block_height = MIN(LCU_WIDTH, (state->tile->frame->height-lcu->position_px.y));
     int items = 0;
     // Hash the current LCU to the IBC hashmap
-    for (int32_t xx = 0; xx < (int32_t)(ibc_block_width)-7; xx+=UVG_HASHMAP_BLOCKSIZE>>1) {
-      for (int32_t yy = 0; yy < (int32_t)(ibc_block_height)-7; yy+=UVG_HASHMAP_BLOCKSIZE>>1) {
+    for (int32_t xx = 0; xx < (int32_t)(ibc_block_width)-7; xx+=UVG_HASHMAP_BLOCKSIZE >> frame->rec->chroma_scale_x) {
+      for (int32_t yy = 0; yy < (int32_t)(ibc_block_height)-7; yy+=UVG_HASHMAP_BLOCKSIZE >> frame->rec->chroma_scale_y) {
         int cur_x = lcu->position_px.x + xx;
         int cur_y = lcu->position_px.y + yy;
         
         // Skip blocks that seem to be the same value for the whole block
         uint64_t first_line =
-          *(uint64_t *)&frame->source->y[cur_y * frame->source->stride + cur_x];
+          *(uint64_t *)&frame->source->y[cur_y * frame->source->stride_luma + cur_x];
         bool same_data = true;
         for (int y_temp = 1; y_temp < 8; y_temp++) {
-          if (*(uint64_t *)&frame->source->y[(cur_y+y_temp) * frame->source->stride + cur_x] != first_line) {
+          if (*(uint64_t *)&frame->source->y[(cur_y+y_temp) * frame->source->stride_luma + cur_x] != first_line) {
             same_data = false;
             break;
           }
         }
         
         if (!same_data || (xx % UVG_HASHMAP_BLOCKSIZE == 0 && yy % UVG_HASHMAP_BLOCKSIZE == 0)) {
-          uint32_t crc = uvg_crc32c_8x8(&frame->source->y[cur_y * frame->source->stride + cur_x],frame->source->stride);
+          uint32_t crc = uvg_crc32c_8x8(&frame->source->y[cur_y * frame->source->stride_luma + cur_x],frame->source->stride_luma);
           if (state->encoder_control->chroma_format != UVG_CSP_400) {
-            crc += uvg_crc32c_4x4(&frame->source->u[(cur_y>>1) * (frame->source->stride>>1) + (cur_x>>1)],frame->source->stride>>1);
-            crc += uvg_crc32c_4x4(&frame->source->v[(cur_y>>1) * (frame->source->stride>>1) + (cur_x>>1)],frame->source->stride>>1);
+            crc += uvg_crc32c_4x4(&frame->source->u[(cur_y >> frame->rec->chroma_scale_y) * (frame->source->stride_chroma) + (cur_x >> frame->rec->chroma_scale_x)],frame->source->stride_chroma);
+            crc += uvg_crc32c_4x4(&frame->source->v[(cur_y >> frame->rec->chroma_scale_y) * (frame->source->stride_chroma) + (cur_x >> frame->rec->chroma_scale_x)],frame->source->stride_chroma);
           }
           if (xx % UVG_HASHMAP_BLOCKSIZE == 0 && yy % UVG_HASHMAP_BLOCKSIZE == 0) {
             state->tile->frame->ibc_hashmap_pos_to_hash[(cur_y / UVG_HASHMAP_BLOCKSIZE)*state->tile->frame->ibc_hashmap_pos_to_hash_stride + cur_x / UVG_HASHMAP_BLOCKSIZE] = crc;
@@ -827,14 +833,14 @@ static void encoder_state_worker_encode_lcu_search(void * opaque)
   }
 
   if (state->tile->frame->lmcs_aps->m_sliceReshapeInfo.sliceReshaperEnableFlag) {
-    uvg_pixel* luma = &state->tile->frame->rec->y[lcu->position_px.x + lcu->position_px.y * state->tile->frame->rec->stride];
+    uvg_pixel* luma = &state->tile->frame->rec->y[lcu->position_px.x + lcu->position_px.y * state->tile->frame->rec->stride_luma];
     for (int y = 0; y < LCU_WIDTH; y++) {
-      if (lcu->position_px.y+y < state->tile->frame->rec->height) {
+      if (lcu->position_px.y+y < state->tile->frame->rec->height_luma) {
         for (int x = 0; x < LCU_WIDTH; x++) {
-          if (lcu->position_px.x+x < state->tile->frame->rec->width) luma[x] = state->tile->frame->lmcs_aps->m_invLUT[luma[x]];
+          if (lcu->position_px.x+x < state->tile->frame->rec->width_luma) luma[x] = state->tile->frame->lmcs_aps->m_invLUT[luma[x]];
         }
       }
-      luma += state->tile->frame->rec->stride;
+      luma += state->tile->frame->rec->stride_luma;
     }
   }
 
@@ -1544,15 +1550,15 @@ static void encoder_set_source_picture(encoder_state_t * const state, uvg_pictur
     // In lossless mode, the reconstruction is equal to the source frame.
     state->tile->frame->rec = uvg_image_copy_ref(frame);
   } else {
-    state->tile->frame->rec = uvg_image_alloc(state->encoder_control->chroma_format, frame->width, frame->height);
+    state->tile->frame->rec = uvg_image_alloc(state->encoder_control->chroma_format, frame->width_luma, frame->height_luma);
     state->tile->frame->rec->dts = frame->dts;
     state->tile->frame->rec->pts = frame->pts;
   }
   state->tile->frame->rec_lmcs = state->tile->frame->rec;
 
   if (state->encoder_control->cfg.lmcs_enable) {
-    state->tile->frame->rec_lmcs = uvg_image_alloc(state->encoder_control->chroma_format, frame->width, frame->height);
-    state->tile->frame->source_lmcs = uvg_image_alloc(state->encoder_control->chroma_format, frame->width, frame->height);
+    state->tile->frame->rec_lmcs = uvg_image_alloc(state->encoder_control->chroma_format, frame->width_luma, frame->height_luma);
+    state->tile->frame->source_lmcs = uvg_image_alloc(state->encoder_control->chroma_format, frame->width_luma, frame->height_luma);
   }
   uvg_videoframe_set_poc(state->tile->frame, state->frame->poc);
 }
@@ -1818,25 +1824,25 @@ static void encoder_state_init_new_frame(encoder_state_t * const state, uvg_pict
         uvg_pixel tmp[LCU_LUMA_SIZE];
         int pxl_x = x * LCU_WIDTH;
         int pxl_y = y * LCU_WIDTH;
-        int x_max = MIN(pxl_x + LCU_WIDTH, frame->width) - pxl_x;
-        int y_max = MIN(pxl_y + LCU_WIDTH, frame->height) - pxl_y;
+        int x_max = MIN(pxl_x + LCU_WIDTH, frame->width_luma) - pxl_x;
+        int y_max = MIN(pxl_y + LCU_WIDTH, frame->height_luma) - pxl_y;
         
         bool xdiv64 = false;
         bool ydiv64 = false;
-        if (frame->width % 64 == 0) xdiv64 = true;
-        if (frame->height % 64 == 0) ydiv64 = true;
+        if (frame->width_luma % 64 == 0) xdiv64 = true;
+        if (frame->height_luma % 64 == 0) ydiv64 = true;
 
         // Luma variance
         if (!edge_lcu(id, x_lim, y_lim, xdiv64, ydiv64)) {
-          uvg_pixels_blit(&state->tile->frame->source->y[pxl_x + pxl_y * state->tile->frame->source->stride], tmp,
-            x_max, y_max, state->tile->frame->source->stride, LCU_WIDTH);
+          uvg_pixels_blit(&state->tile->frame->source->y[pxl_x + pxl_y * state->tile->frame->source->stride_luma], tmp,
+            x_max, y_max, state->tile->frame->source->stride_luma, LCU_WIDTH);
         } else {
           // Extend edge pixels for edge lcus
           for (int y = 0; y < LCU_WIDTH; y++) {
             for (int x = 0; x < LCU_WIDTH; x++) {
-              int src_y = CLIP(0, frame->height - 1, pxl_y + y);
-              int src_x = CLIP(0, frame->width - 1, pxl_x + x);
-              tmp[y * LCU_WIDTH + x] = state->tile->frame->source->y[src_y * state->tile->frame->source->stride + src_x];
+              int src_y = CLIP(0, frame->height_luma - 1, pxl_y + y);
+              int src_x = CLIP(0, frame->width_luma - 1, pxl_x + x);
+              tmp[y * LCU_WIDTH + x] = state->tile->frame->source->y[src_y * state->tile->frame->source->stride_luma + src_x];
             }
           }
         }
@@ -1845,14 +1851,14 @@ static void encoder_state_init_new_frame(encoder_state_t * const state, uvg_pict
 
         if (has_chroma) {
           // Add chroma variance if not monochrome
-          int32_t c_stride = state->tile->frame->source->stride >> 1;
+          int32_t c_stride = state->tile->frame->source->stride_chroma;
           uvg_pixel chromau_tmp[LCU_CHROMA_SIZE];
           uvg_pixel chromav_tmp[LCU_CHROMA_SIZE];
           int lcu_chroma_width = LCU_WIDTH >> 1;
           int c_pxl_x = x * lcu_chroma_width;
           int c_pxl_y = y * lcu_chroma_width;
-          int c_x_max = MIN(c_pxl_x + lcu_chroma_width, frame->width >> 1) - c_pxl_x;
-          int c_y_max = MIN(c_pxl_y + lcu_chroma_width, frame->height >> 1) - c_pxl_y;
+          int c_x_max = MIN(c_pxl_x + lcu_chroma_width, frame->width_chroma) - c_pxl_x;
+          int c_y_max = MIN(c_pxl_y + lcu_chroma_width, frame->height_chroma) - c_pxl_y;
 
           if (!edge_lcu(id, x_lim, y_lim, xdiv64, ydiv64)) {
             uvg_pixels_blit(&state->tile->frame->source->u[c_pxl_x + c_pxl_y * c_stride], chromau_tmp, c_x_max, c_y_max, c_stride, lcu_chroma_width);
@@ -1861,8 +1867,8 @@ static void encoder_state_init_new_frame(encoder_state_t * const state, uvg_pict
           else {
             for (int y = 0; y < lcu_chroma_width; y++) {
               for (int x = 0; x < lcu_chroma_width; x++) {
-                int src_y = CLIP(0, (frame->height >> 1) - 1, c_pxl_y + y);
-                int src_x = CLIP(0, (frame->width >> 1) - 1, c_pxl_x + x);
+                int src_y = CLIP(0, (frame->height_chroma) - 1, c_pxl_y + y);
+                int src_x = CLIP(0, (frame->width_chroma) - 1, c_pxl_x + x);
                 chromau_tmp[y * lcu_chroma_width + x] = state->tile->frame->source->u[src_y * c_stride + src_x];
                 chromav_tmp[y * lcu_chroma_width + x] = state->tile->frame->source->v[src_y * c_stride + src_x];
               }
@@ -2017,12 +2023,12 @@ static void encoder_state_init_new_frame(encoder_state_t * const state, uvg_pict
 
       uvg_pixel* luma = state->tile->frame->source->y;
       uvg_pixel* luma_lmcs = state->tile->frame->source_lmcs->y;
-      for (int y = 0; y < state->tile->frame->source->height; y++) {
-        for (int x = 0; x < state->tile->frame->source->width; x++) {
+      for (int y = 0; y < state->tile->frame->source->height_luma; y++) {
+        for (int x = 0; x < state->tile->frame->source->width_luma; x++) {
           luma_lmcs[x] = state->tile->frame->lmcs_aps->m_fwdLUT[luma[x]];
         }
-        luma += state->tile->frame->source->stride;
-        luma_lmcs += state->tile->frame->source->stride;
+        luma += state->tile->frame->source->stride_luma;
+        luma_lmcs += state->tile->frame->source->stride_luma;
       }
       state->tile->frame->source_lmcs_mapped = true;
       state->tile->frame->lmcs_top_level = true;

@@ -582,10 +582,11 @@ static void predict_cclm(
     }    
   }
 
+  // TODO YUV: find all /2 and /4 and use chroma_scale_x/y
   uvg_pixels_blit(&state->tile->frame->cclm_luma_rec[x0 / 2 + (y0 * stride2) / 4], sampled_luma, width, height, stride2 / 2, width);
 
   int16_t a, b, shift;
-  get_cclm_parameters(state, width, height, mode,x0, y0, available_above_right, available_left_below, &sampled_luma_ref, chroma_ref, &a, &b, &shift);
+  get_cclm_parameters(state, width, height, mode, x0, y0, available_above_right, available_left_below, &sampled_luma_ref, chroma_ref, &a, &b, &shift);
   cclm_params->shift = shift;
   cclm_params->a = a;
   cclm_params->b = b;
@@ -1577,10 +1578,10 @@ static void intra_recon_tb_leaf(
       int ref_height = height * 2 + MAX_REF_LINE_IDX;
       ref_height = MIN(ref_height, (LCU_WIDTH - lcu_px.y + MAX_REF_LINE_IDX)); // Cut short if on bottom LCU edge. Cannot take references from below since they don't exist.
       ref_height = MIN(ref_height, pic_px.y - luma_px.y + MAX_REF_LINE_IDX);
-      uvg_pixels_blit(&frame->rec->y[(luma_px.y - MAX_REF_LINE_IDX) * frame->rec->stride + luma_px.x - (1 + i)],
+      uvg_pixels_blit(&frame->rec->y[(luma_px.y - MAX_REF_LINE_IDX) * frame->rec->stride_luma + luma_px.x - (1 + i)],
         &extra_refs[i * 128],
         1, ref_height,
-        frame->rec->stride, 1);
+        frame->rec->stride_luma, 1);
     }
   }
 

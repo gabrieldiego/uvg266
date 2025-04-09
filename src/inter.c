@@ -78,9 +78,9 @@ static void inter_recon_frac_luma(const encoder_state_t * const state,
   int ext_s = 0;
   uvg_epol_args epol_args = {
     .src = ref->y,
-    .src_w = ref->width,
-    .src_h = ref->height,
-    .src_s = ref->stride,
+    .src_w = ref->width_luma,
+    .src_h = ref->height_luma,
+    .src_s = ref->stride_luma,
     .blk_x = state->tile->offset_x + xpos + (mv_param[0] >> INTERNAL_MV_PREC),
     .blk_y = state->tile->offset_y + ypos + (mv_param[1] >> INTERNAL_MV_PREC),
     .blk_w = block_width,
@@ -138,9 +138,9 @@ static void inter_recon_frac_luma_hi(const encoder_state_t *const state,
   int ext_s = 0;
   uvg_epol_args epol_args = {
     .src = ref->y,
-    .src_w = ref->width,
-    .src_h = ref->height,
-    .src_s = ref->stride,
+    .src_w = ref->width_luma,
+    .src_h = ref->height_luma,
+    .src_s = ref->stride_luma,
     .blk_x = state->tile->offset_x + xpos + (mv_param[0] >> INTERNAL_MV_PREC),
     .blk_y = state->tile->offset_y + ypos + (mv_param[1] >> INTERNAL_MV_PREC),
     .blk_w = block_width,
@@ -205,11 +205,11 @@ static void inter_recon_frac_chroma(const encoder_state_t *const state,
   // Divisions by 2 due to 4:2:0 chroma subsampling
   uvg_epol_args epol_args = {
     .src = ref->u,
-    .src_w = ref->width / 2,
-    .src_h = ref->height / 2,
-    .src_s = ref->stride / 2,
-    .blk_x = (state->tile->offset_x + pu_x) / 2 + (mv_param[0] >> (INTERNAL_MV_PREC + 1) ),
-    .blk_y = (state->tile->offset_y + pu_y) / 2 + (mv_param[1] >> (INTERNAL_MV_PREC + 1) ),
+    .src_w = ref->width_chroma,
+    .src_h = ref->height_chroma,
+    .src_s = ref->stride_chroma,
+    .blk_x = ((state->tile->offset_x + pu_x) >> ref->chroma_scale_x) + (mv_param[0] >> (INTERNAL_MV_PREC + 1) ),
+    .blk_y = ((state->tile->offset_y + pu_y) >> ref->chroma_scale_y) + (mv_param[1] >> (INTERNAL_MV_PREC + 1) ),
     .blk_w = pb_w,
     .blk_h = pb_h,
     .pad_l = UVG_CHROMA_FILTER_OFFSET,
@@ -290,11 +290,11 @@ static void inter_recon_frac_chroma_hi(const encoder_state_t *const state,
   // Divisions by 2 due to 4:2:0 chroma subsampling
   uvg_epol_args epol_args = {
     .src = ref->u,
-    .src_w = ref->width / 2,
-    .src_h = ref->height / 2,
-    .src_s = ref->stride / 2,
-    .blk_x = (state->tile->offset_x + pu_x) / 2 + (mv_param[0] >> (INTERNAL_MV_PREC + 1) ),
-    .blk_y = (state->tile->offset_y + pu_y) / 2 + (mv_param[1] >> (INTERNAL_MV_PREC + 1) ),
+    .src_w = ref->width_chroma,
+    .src_h = ref->height_chroma,
+    .src_s = ref->stride_chroma,
+    .blk_x = ((state->tile->offset_x + pu_x) >> ref->chroma_scale_x) + (mv_param[0] >> (INTERNAL_MV_PREC + 1) ),
+    .blk_y = ((state->tile->offset_y + pu_y) >> ref->chroma_scale_y) + (mv_param[1] >> (INTERNAL_MV_PREC + 1) ),
     .blk_w = pb_w,
     .blk_h = pb_h,
     .pad_l = UVG_CHROMA_FILTER_OFFSET,
@@ -424,8 +424,8 @@ static unsigned inter_recon_unipred(
 
   const bool int_mv_outside_frame = int_mv_in_frame.x < 0 ||
     int_mv_in_frame.y < 0 ||
-    int_mv_in_frame.x + pu_w > ref->width ||
-    int_mv_in_frame.y + pu_h > ref->height;
+    int_mv_in_frame.x + pu_w > ref->width_luma ||
+    int_mv_in_frame.y + pu_h > ref->height_luma;
 
   // With 420, odd coordinates need interpolation.
   const bool fractional_chroma = (int_mv.x & 1) || (int_mv.y & 1);
@@ -450,18 +450,18 @@ static unsigned inter_recon_unipred(
     } else {
       // With an integer MV, copy pixels directly from the reference.
       if (int_mv_outside_frame) {
-        inter_cp_with_ext_border(ref->y, ref->stride,
-          ref->width, ref->height,
+        inter_cp_with_ext_border(ref->y, ref->stride_luma,
+          ref->width_luma, ref->height_luma,
           yuv_px->y, out_stride_luma,
           pu_w, pu_h,
           &int_mv_in_frame, state->encoder_control->cfg.ref_wraparound);
       }
       else {
-        const int frame_mv_index = int_mv_in_frame.y * ref->stride + int_mv_in_frame.x;
+        const int frame_mv_index = int_mv_in_frame.y * ref->stride_luma + int_mv_in_frame.x;
         uvg_pixels_blit(&ref->y[frame_mv_index],
           yuv_px->y,
           pu_w, pu_h,
-          ref->stride, out_stride_luma);
+          ref->stride_luma, out_stride_luma);
       }
     }
   }
@@ -470,7 +470,7 @@ static unsigned inter_recon_unipred(
     return fractional_luma;
   }
 
-  const unsigned out_stride_c = out_stride_luma / 2;
+  const unsigned out_stride_c = out_stride_luma >> ref->chroma_scale_x;
 
   // Generate prediction for chroma.
   if (fractional_luma || fractional_chroma) {
@@ -488,30 +488,30 @@ static unsigned inter_recon_unipred(
     }
   } else {
     // With an integer MV, copy pixels directly from the reference.
-    const vector2d_t int_mv_in_frame_c = { int_mv_in_frame.x / 2, int_mv_in_frame.y / 2 };
+    const vector2d_t int_mv_in_frame_c = { int_mv_in_frame.x >> ref->chroma_scale_x, int_mv_in_frame.y >> ref->chroma_scale_y};
 
     if (int_mv_outside_frame) {
-      inter_cp_with_ext_border(ref->u, ref->stride / 2,
-                               ref->width / 2, ref->height / 2,
+      inter_cp_with_ext_border(ref->u, ref->stride_chroma,
+                               ref->width_chroma, ref->height_chroma,
                                yuv_px->u, out_stride_c,
-                               pu_w / 2, pu_h / 2,
+                               pu_w >> ref->chroma_scale_x, pu_h >> ref->chroma_scale_y,
                                &int_mv_in_frame_c, state->encoder_control->cfg.ref_wraparound);
-      inter_cp_with_ext_border(ref->v, ref->stride / 2,
-                               ref->width / 2, ref->height / 2,
+      inter_cp_with_ext_border(ref->v, ref->stride_chroma,
+                               ref->width_chroma, ref->height_chroma,
                                yuv_px->v, out_stride_c,
-                               pu_w / 2, pu_h / 2,
+                               pu_w >> ref->chroma_scale_x, pu_h >> ref->chroma_scale_y,
                                &int_mv_in_frame_c, state->encoder_control->cfg.ref_wraparound);
     } else {
-      const int frame_mv_index = int_mv_in_frame_c.y * ref->stride / 2 + int_mv_in_frame_c.x;
+      const int frame_mv_index = int_mv_in_frame_c.y * ref->stride_chroma + int_mv_in_frame_c.x;
 
       uvg_pixels_blit(&ref->u[frame_mv_index],
                       yuv_px->u,
-                      pu_w / 2, pu_h / 2,
-                      ref->stride / 2, out_stride_c);
+                      pu_w >> ref->chroma_scale_x, pu_h >> ref->chroma_scale_y,
+                      ref->stride_chroma, out_stride_c);
       uvg_pixels_blit(&ref->v[frame_mv_index],
                       yuv_px->v,
-                      pu_w / 2, pu_h / 2,
-                      ref->stride / 2, out_stride_c);
+                      pu_w >> ref->chroma_scale_x, pu_h >> ref->chroma_scale_y,
+                      ref->stride_chroma, out_stride_c);
     }
   }
 

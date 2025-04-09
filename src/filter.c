@@ -679,7 +679,7 @@ static void filter_deblock_edge_luma(encoder_state_t * const state,
   const encoder_control_t * const encoder = state->encoder_control;
   
   {
-    int32_t stride = frame->rec->stride;
+    int32_t stride = frame->rec->stride_luma;
     int32_t beta_offset_div2 = encoder->cfg.deblock_beta;
     int32_t tc_offset_div2   = encoder->cfg.deblock_tc;
     // TODO: support 10+bits
@@ -1046,7 +1046,7 @@ static void filter_deblock_edge_chroma(encoder_state_t * const state,
    
   // For each subpart
   {
-    int32_t stride = frame->rec->stride >> 1;
+    int32_t stride = frame->rec->stride_chroma;
     int32_t tc_offset_div2 = encoder->cfg.deblock_tc;
     int32_t beta_offset_div2 = encoder->cfg.deblock_beta;
     // TODO: support 10+bits

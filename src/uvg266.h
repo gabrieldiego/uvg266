@@ -574,10 +574,17 @@ typedef struct uvg_picture {
   uvg_pixel *v;                //!< \brief Pointer to chroma V pixel array.
   uvg_pixel *data[3]; //!< \brief Alternate access method to same data.
 
-  int32_t width;           //!< \brief Luma pixel array width.
-  int32_t height;          //!< \brief Luma pixel array height.
+  int32_t width_luma;      //!< \brief Luma pixel array width.
+  int32_t height_luma;     //!< \brief Luma pixel array height.
 
-  int32_t stride;          //!< \brief Luma pixel array width for the full picture (should be used as stride)
+  int32_t width_chroma;    //!< \brief Chroma pixel array width.
+  int32_t height_chroma;   //!< \brief Chroma pixel array height.
+  
+  int chroma_scale_x;     //!< \brief Chroma scaling from luma in array width.
+  int chroma_scale_y;     //!< \brief Chroma scaling from luma in array height.
+
+  int32_t stride_luma;     //!< \brief Luma pixel array width for the full picture (should be used as stride)
+  int32_t stride_chroma;   //!< \brief Chroma pixel array width for the full picture (should be used as stride)
 
   struct uvg_picture *base_image; //!< \brief Pointer to the picture which owns the pixels
   int32_t refcount;        //!< \brief Number of references to the picture

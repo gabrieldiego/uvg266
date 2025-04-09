@@ -71,6 +71,9 @@ uvg_picture * uvg_image_alloc(enum uvg_chroma_format chroma_format, const int32_
   unsigned chroma_sizes[] = { 0, luma_size / 4, luma_size / 2, luma_size };
   unsigned chroma_size = chroma_sizes[chroma_format];
 
+  int chroma_scale_x[] = {0, 1, 1, 0}; 
+  int chroma_scale_y[] = {0, 1, 0, 0}; 
+
   im->chroma_format = chroma_format;
 
   //Allocate memory, pad the full data buffer from both ends
@@ -82,12 +85,19 @@ uvg_picture * uvg_image_alloc(enum uvg_chroma_format chroma_format, const int32_
 
   //Shift the image to allow ALF filtering
   im->refcount = 1; //We give a reference to caller
-  im->width = width;
-  im->height = height;
-  im->stride = width + FRAME_PADDING_LUMA;
   im->chroma_format = chroma_format;
-  const int padding_before_first_pixel_luma = (FRAME_PADDING_LUMA / 2) * (im->stride) + FRAME_PADDING_LUMA / 2;
-  const int padding_before_first_pixel_chroma = (FRAME_PADDING_CHROMA / 2) * (im->stride/2) + FRAME_PADDING_CHROMA / 2;
+  im->chroma_scale_x = chroma_scale_x[chroma_format];
+  im->chroma_scale_y = chroma_scale_y[chroma_format];
+ 
+  im->width_luma = width;
+  im->height_luma = height;
+  im->width_chroma = width >> im->chroma_scale_x;
+  im->height_chroma = height >> im->chroma_scale_y;
+  im->stride_luma = width + FRAME_PADDING_LUMA;
+  im->stride_chroma = (width >> im->chroma_scale_x) + FRAME_PADDING_CHROMA;
+  
+  const int padding_before_first_pixel_luma = (FRAME_PADDING_LUMA / 2) * (im->stride_luma) + FRAME_PADDING_LUMA / 2;
+  const int padding_before_first_pixel_chroma = (FRAME_PADDING_CHROMA / 2) * (im->stride_chroma) + FRAME_PADDING_CHROMA / 2;
   im->fulldata = &im->fulldata_buf[padding_before_first_pixel_luma] + simd_padding_width / sizeof(uvg_pixel);
   im->base_image = im;
 
@@ -175,23 +185,28 @@ uvg_picture *uvg_image_make_subimage(uvg_picture *const orig_image,
   assert((x_offset % 2) == 0);
   assert((y_offset % 2) == 0);
 
-  assert(x_offset + width <= orig_image->width);
-  assert(y_offset + height <= orig_image->height);
+  assert(x_offset + width <= orig_image->width_luma);
+  assert(y_offset + height <= orig_image->height_luma);
 
   uvg_picture *im = MALLOC(uvg_picture, 1);
   if (!im) return NULL;
 
   im->base_image = uvg_image_copy_ref(orig_image->base_image);
   im->refcount = 1; // We give a reference to caller
-  im->width = width;
-  im->height = height;
-  im->stride = orig_image->stride;
+  im->width_luma = width;
+  im->height_luma = height;
+  im->width_chroma = width >> orig_image->chroma_scale_x;
+  im->height_chroma = height >> orig_image->chroma_scale_y;
+  im->stride_luma = orig_image->stride_luma;
+  im->stride_chroma = orig_image->stride_chroma;
   im->chroma_format = orig_image->chroma_format;
+  im->chroma_scale_x = orig_image->chroma_scale_x;
+  im->chroma_scale_y = orig_image->chroma_scale_y;
 
-  im->y = im->data[COLOR_Y] = &orig_image->y[x_offset + y_offset * orig_image->stride];
+  im->y = im->data[COLOR_Y] = &orig_image->y[x_offset + y_offset * orig_image->stride_chroma];
   if (orig_image->chroma_format != UVG_CSP_400) {
-    im->u = im->data[COLOR_U] = &orig_image->u[x_offset / 2 + y_offset / 2 * orig_image->stride / 2];
-    im->v = im->data[COLOR_V] = &orig_image->v[x_offset / 2 + y_offset / 2 * orig_image->stride / 2];
+    im->u = im->data[COLOR_U] = &orig_image->u[(x_offset >> orig_image->chroma_scale_y) + (y_offset >> orig_image->chroma_scale_y) * orig_image->stride_chroma];
+    im->v = im->data[COLOR_V] = &orig_image->v[(x_offset >> orig_image->chroma_scale_y) + (y_offset >> orig_image->chroma_scale_y) * orig_image->stride_chroma];
   }
 
   im->pts = 0;
@@ -319,8 +334,8 @@ static unsigned image_interpolated_sad(const uvg_picture *pic, const uvg_picture
 
   // Change the movement vector to point right next to the frame. This doesn't
   // affect the result but removes some special cases.
-  if (ref_x > ref->width)            ref_x = ref->width;
-  if (ref_y > ref->height)           ref_y = ref->height;
+  if (ref_x > ref->width_luma)  ref_x = ref->width_luma;
+  if (ref_y > ref->height_luma) ref_y = ref->height_luma;
   if (ref_x + block_width < 0)  ref_x = -block_width;
   if (ref_y + block_height < 0) ref_y = -block_height;
 
@@ -329,15 +344,15 @@ static unsigned image_interpolated_sad(const uvg_picture *pic, const uvg_picture
   // movement vector doesn't point outside the frame.
   left   = (ref_x < 0) ? -ref_x : 0;
   top    = (ref_y < 0) ? -ref_y : 0;
-  right  = (ref_x + block_width  > ref->width)  ? ref_x + block_width  - ref->width  : 0;
-  bottom = (ref_y + block_height > ref->height) ? ref_y + block_height - ref->height : 0;
+  right  = (ref_x + block_width  > ref->width_luma)  ? ref_x + block_width  - ref->width_luma  : 0;
+  bottom = (ref_y + block_height > ref->height_luma) ? ref_y + block_height - ref->height_luma : 0;
 
   // Center picture to the current block and reference to the point where
   // movement vector is pointing to. That point might be outside the buffer,
   // but that is ok because we project the movement vector to the buffer
   // before dereferencing the pointer.
-  pic_data = &pic->y[pic_y * pic->stride + pic_x];
-  ref_data = &ref->y[ref_y * ref->stride + ref_x];
+  pic_data = &pic->y[pic_y * pic->stride_luma + pic_x];
+  ref_data = &ref->y[ref_y * ref->stride_luma + ref_x];
 
   // The handling of movement vectors that point outside the picture is done
   // in the following way.
@@ -352,76 +367,76 @@ static unsigned image_interpolated_sad(const uvg_picture *pic, const uvg_picture
   // strategy
   if (top && left) {
     result += cor_sad(pic_data,
-                      &ref_data[top * ref->stride + left],
-                      left, top, pic->stride);
+                      &ref_data[top * ref->stride_luma + left],
+                      left, top, pic->stride_luma);
     result += uvg_ver_sad(&pic_data[left],
-                      &ref_data[top * ref->stride + left],
-                      block_width - left, top, pic->stride);
+                      &ref_data[top * ref->stride_luma + left],
+                      block_width - left, top, pic->stride_luma);
 
-    result += uvg_hor_sad(pic_data + top * pic->stride,
-                          ref_data + top * ref->stride,
+    result += uvg_hor_sad(pic_data + top * pic->stride_luma,
+                          ref_data + top * ref->stride_luma,
                           block_width, block_height - top,
-                          pic->stride, ref->stride,
+                          pic->stride_luma, ref->stride_luma,
                           left, right);
 
   } else if (top && right) {
     result += uvg_ver_sad(pic_data,
-                      &ref_data[top * ref->stride],
-                      block_width - right, top, pic->stride);
+                      &ref_data[top * ref->stride_luma],
+                      block_width - right, top, pic->stride_luma);
     result += cor_sad(&pic_data[block_width - right],
-                      &ref_data[top * ref->stride + (block_width - right - 1)],
-                      right, top, pic->stride);
+                      &ref_data[top * ref->stride_luma + (block_width - right - 1)],
+                      right, top, pic->stride_luma);
 
-    result += uvg_hor_sad(pic_data + top * pic->stride,
-                          ref_data + top * ref->stride,
+    result += uvg_hor_sad(pic_data + top * pic->stride_luma,
+                          ref_data + top * ref->stride_luma,
                           block_width, block_height - top,
-                          pic->stride, ref->stride,
+                          pic->stride_luma, ref->stride_luma,
                           left, right);
 
   } else if (bottom && left) {
     result += uvg_hor_sad(pic_data, ref_data, block_width, block_height - bottom,
-                          pic->stride, ref->stride, left, right);
+                          pic->stride_luma, ref->stride_luma, left, right);
 
-    result += cor_sad(&pic_data[(block_height - bottom) * pic->stride],
-                      &ref_data[(block_height - bottom - 1) * ref->stride + left],
-                      left, bottom, pic->stride);
-    result += uvg_ver_sad(&pic_data[(block_height - bottom) * pic->stride + left],
-                      &ref_data[(block_height - bottom - 1) * ref->stride + left],
-                      block_width - left, bottom, pic->stride);
+    result += cor_sad(&pic_data[(block_height - bottom) * pic->stride_luma],
+                      &ref_data[(block_height - bottom - 1) * ref->stride_luma + left],
+                      left, bottom, pic->stride_luma);
+    result += uvg_ver_sad(&pic_data[(block_height - bottom) * pic->stride_luma + left],
+                      &ref_data[(block_height - bottom - 1) * ref->stride_luma + left],
+                      block_width - left, bottom, pic->stride_luma);
   } else if (bottom && right) {
     result += uvg_hor_sad(pic_data, ref_data, block_width, block_height - bottom,
-                          pic->stride, ref->stride, left, right);
+                          pic->stride_luma, ref->stride_luma, left, right);
 
-    result += uvg_ver_sad(&pic_data[(block_height - bottom) * pic->stride],
-                      &ref_data[(block_height - bottom - 1) * ref->stride],
-                      block_width - right, bottom, pic->stride);
-    result += cor_sad(&pic_data[(block_height - bottom) * pic->stride + block_width - right],
-                      &ref_data[(block_height - bottom - 1) * ref->stride + block_width - right - 1],
-                      right, bottom, pic->stride);
+    result += uvg_ver_sad(&pic_data[(block_height - bottom) * pic->stride_luma],
+                      &ref_data[(block_height - bottom - 1) * ref->stride_luma],
+                      block_width - right, bottom, pic->stride_luma);
+    result += cor_sad(&pic_data[(block_height - bottom) * pic->stride_luma + block_width - right],
+                      &ref_data[(block_height - bottom - 1) * ref->stride_luma + block_width - right - 1],
+                      right, bottom, pic->stride_luma);
   } else if (top) {
     result += uvg_ver_sad(pic_data,
-                      &ref_data[top * ref->stride],
-                      block_width, top, pic->stride);
-    result += reg_sad_maybe_optimized(&pic_data[top * pic->stride],
-                      &ref_data[top * ref->stride],
-                      block_width, block_height - top, pic->stride, ref->stride,
+                      &ref_data[top * ref->stride_luma],
+                      block_width, top, pic->stride_luma);
+    result += reg_sad_maybe_optimized(&pic_data[top * pic->stride_luma],
+                      &ref_data[top * ref->stride_luma],
+                      block_width, block_height - top, pic->stride_luma, ref->stride_luma,
                       optimized_sad);
   } else if (bottom) {
     result += reg_sad_maybe_optimized(pic_data,
                       ref_data,
-                      block_width, block_height - bottom, pic->stride, ref->stride,
+                      block_width, block_height - bottom, pic->stride_luma, ref->stride_luma,
                       optimized_sad);
-    result += uvg_ver_sad(&pic_data[(block_height - bottom) * pic->stride],
-                      &ref_data[(block_height - bottom - 1) * ref->stride],
-                      block_width, bottom, pic->stride);
+    result += uvg_ver_sad(&pic_data[(block_height - bottom) * pic->stride_luma],
+                      &ref_data[(block_height - bottom - 1) * ref->stride_luma],
+                      block_width, bottom, pic->stride_luma);
   } else if (left | right) {
     result += uvg_hor_sad(pic_data, ref_data,
-                          block_width, block_height, pic->stride,
-                          ref->stride, left, right);
+                          block_width, block_height, pic->stride_luma,
+                          ref->stride_luma, left, right);
   } else {
     result += reg_sad_maybe_optimized(pic_data, ref_data,
                                       block_width, block_height,
-                                      pic->stride, ref->stride,
+                                      pic->stride_luma, ref->stride_luma,
                                       optimized_sad);
   }
   return result;
@@ -445,25 +460,25 @@ unsigned uvg_image_calc_sad(const uvg_picture *pic,
                             int block_height,
                             optimized_sad_func_ptr_t optimized_sad)
 {
-  assert(pic_x >= 0 && pic_x <= pic->width - block_width);
-  assert(pic_y >= 0 && pic_y <= pic->height - block_height);
+  assert(pic_x >= 0 && pic_x <= pic->width_luma - block_width);
+  assert(pic_y >= 0 && pic_y <= pic->height_luma - block_height);
 
   uint32_t res;
 
-  if (ref_x >= 0 && ref_x <= ref->width  - block_width &&
-      ref_y >= 0 && ref_y <= ref->height - block_height)
+  if (ref_x >= 0 && ref_x <= ref->width_luma  - block_width &&
+      ref_y >= 0 && ref_y <= ref->height_luma - block_height)
   {
     // Reference block is completely inside the frame, so just calculate the
     // SAD directly. This is the most common case, which is why it's first.
-    const uvg_pixel *pic_data = &pic->y[pic_y * pic->stride + pic_x];
-    const uvg_pixel *ref_data = &ref->y[ref_y * ref->stride + ref_x];
+    const uvg_pixel *pic_data = &pic->y[pic_y * pic->stride_luma + pic_x];
+    const uvg_pixel *ref_data = &ref->y[ref_y * ref->stride_luma + ref_x];
 
     res = reg_sad_maybe_optimized(pic_data,
                                   ref_data,
                                   block_width,
                                   block_height,
-                                  pic->stride,
-                                  ref->stride,
+                                  pic->stride_luma,
+                                  ref->stride_luma,
                                   optimized_sad);
   } else {
     // Call a routine that knows how to interpolate pixels outside the frame.
@@ -489,22 +504,22 @@ unsigned uvg_image_calc_satd(const uvg_picture *pic,
                              int block_height,
                              uint8_t ref_wraparound)
 {
-  assert(pic_x >= 0 && pic_x <= pic->width - block_width);
-  assert(pic_y >= 0 && pic_y <= pic->height - block_height);
+  assert(pic_x >= 0 && pic_x <= pic->width_luma - block_width);
+  assert(pic_y >= 0 && pic_y <= pic->height_luma - block_height);
 
-  if (ref_x >= 0 && ref_x <= ref->width  - block_width &&
-      ref_y >= 0 && ref_y <= ref->height - block_height)
+  if (ref_x >= 0 && ref_x <= ref->width_luma  - block_width &&
+      ref_y >= 0 && ref_y <= ref->height_luma - block_height)
   {
     // Reference block is completely inside the frame, so just calculate the
     // SAD directly. This is the most common case, which is why it's first.
-    const uvg_pixel *pic_data = &pic->y[pic_y * pic->stride + pic_x];
-    const uvg_pixel *ref_data = &ref->y[ref_y * ref->stride + ref_x];
+    const uvg_pixel *pic_data = &pic->y[pic_y * pic->stride_luma + pic_x];
+    const uvg_pixel *ref_data = &ref->y[ref_y * ref->stride_luma + ref_x];
     return uvg_satd_any_size(block_width,
                              block_height,
                              pic_data,
-                             pic->stride,
+                             pic->stride_luma,
                              ref_data,
-                             ref->stride);
+                             ref->stride_luma);
   } else {
     // Extrapolate pixels from outside the frame.
 
@@ -516,9 +531,9 @@ unsigned uvg_image_calc_satd(const uvg_picture *pic,
     int ext_s = 0;
     uvg_epol_args epol_args = {
       .src = ref->y,
-      .src_w = ref->width,
-      .src_h = ref->height,
-      .src_s = ref->stride,
+      .src_w = ref->width_luma,
+      .src_h = ref->height_luma,
+      .src_s = ref->stride_luma,
       .blk_x = ref_x,
       .blk_y = ref_y,
       .blk_w = block_width,
@@ -543,12 +558,12 @@ unsigned uvg_image_calc_satd(const uvg_picture *pic,
       uvg_get_extended_block(&epol_args);
     }
 
-    const uvg_pixel *pic_data = &pic->y[pic_y * pic->stride + pic_x];
+    const uvg_pixel *pic_data = &pic->y[pic_y * pic->stride_luma + pic_x];
 
     unsigned satd = uvg_satd_any_size(block_width,
       block_height,
       pic_data,
-      pic->stride,
+      pic->stride_luma,
       ext_origin,
       ext_s);
 

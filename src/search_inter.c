@@ -1081,9 +1081,9 @@ static void search_frac(inter_search_info_t *info,
   int ext_s = 0;
   uvg_epol_args epol_args = {
     .src = ref->y,
-    .src_w = ref->width,
-    .src_h = ref->height,
-    .src_s = ref->stride,
+    .src_w = ref->width_luma,
+    .src_h = ref->height_luma,
+    .src_s = ref->stride_luma,
     .blk_x = state->tile->offset_x + orig.x + mv.x - 1,
     .blk_y = state->tile->offset_y + orig.y + mv.y - 1,
     .blk_w = internal_width + 1,  // TODO: real width
@@ -1108,8 +1108,8 @@ static void search_frac(inter_search_info_t *info,
     uvg_get_extended_block(&epol_args);
   }
 
-  uvg_pixel *tmp_pic = pic->y + orig.y * pic->stride + orig.x;
-  int tmp_stride = pic->stride;
+  uvg_pixel *tmp_pic = pic->y + orig.y * pic->stride_luma + orig.x;
+  int tmp_stride = pic->stride_luma;
                   
   // Search integer position
   costs[0] = uvg_satd_any_size(width, height,
@@ -1578,9 +1578,9 @@ static void search_pu_inter_bipred(
                            &cu_loc);
 
     const uvg_pixel *rec = &lcu->rec.y[SUB_SCU(y) * LCU_WIDTH + SUB_SCU(x)];
-    const uvg_pixel *src = &frame->source->y[x + y * frame->source->stride];
+    const uvg_pixel *src = &frame->source->y[x + y * frame->source->stride_luma];
     double cost =
-      uvg_satd_any_size(width, height, rec, LCU_WIDTH, src, frame->source->stride);
+      uvg_satd_any_size(width, height, rec, LCU_WIDTH, src, frame->source->stride_luma);
 
     double bitcost[2] = { 0, 0 };
 

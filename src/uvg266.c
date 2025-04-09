@@ -218,23 +218,23 @@ static int yuv_io_extract_field(const uvg_picture *frame_in, unsigned source_sca
   else if (source_scan_type == 2) offset = field_parity ? 0 : 1;  
 
   //Luma
-  for (int32_t i = 0; i < field_out->height; ++i){
-    uvg_pixel *row_in  = frame_in->y + MIN(frame_in->height - 1, 2 * i + offset) * frame_in->stride;
-    uvg_pixel *row_out = field_out->y + i * field_out->stride;
-    memcpy(row_out, row_in, sizeof(uvg_pixel) * frame_in->stride);
+  for (int32_t i = 0; i < field_out->height_luma; ++i){
+    uvg_pixel *row_in  = frame_in->y + MIN(frame_in->height_luma - 1, 2 * i + offset) * frame_in->stride_luma;
+    uvg_pixel *row_out = field_out->y + i * field_out->stride_luma;
+    memcpy(row_out, row_in, sizeof(uvg_pixel) * frame_in->stride_luma);
   }
 
   //Chroma
-  for (int32_t i = 0; i < field_out->height / 2; ++i) {
-    uvg_pixel *row_in = frame_in->u + MIN(frame_in->height / 2 - 1, 2 * i + offset) * frame_in->stride / 2;
-    uvg_pixel *row_out = field_out->u + i * field_out->stride / 2;
-    memcpy(row_out, row_in, sizeof(uvg_pixel) * frame_in->stride / 2);
+  for (int32_t i = 0; i < field_out->height_chroma; ++i) { //TODO: YUV must follow the sampling size instead of fixed to 420
+    uvg_pixel *row_in = frame_in->u + MIN(frame_in->height_chroma - 1, 2 * i + offset) * frame_in->stride_chroma;
+    uvg_pixel *row_out = field_out->u + i * field_out->stride_chroma;
+    memcpy(row_out, row_in, sizeof(uvg_pixel) * frame_in->stride_chroma);
   }
 
-  for (int32_t i = 0; i < field_out->height / 2; ++i) {
-    uvg_pixel *row_in = frame_in->v + MIN(frame_in->height / 2 - 1, 2 * i + offset) * frame_in->stride / 2;
-    uvg_pixel *row_out = field_out->v + i * field_out->stride / 2;
-    memcpy(row_out, row_in, sizeof(uvg_pixel) * frame_in->stride / 2);
+  for (int32_t i = 0; i < field_out->height_chroma; ++i) { // TODO: YUV Same here
+    uvg_pixel *row_in = frame_in->v + MIN(frame_in->height_chroma - 1, 2 * i + offset) * frame_in->stride_chroma;
+    uvg_pixel *row_out = field_out->v + i * field_out->stride_chroma;
+    memcpy(row_out, row_in, sizeof(uvg_pixel) * frame_in->stride_chroma);
   }
 
   return 1;
@@ -404,7 +404,7 @@ static const uvg_api uvg_8bit_api = {
   .config_destroy = uvg_config_destroy,
   .config_parse = uvg_config_parse,
 
-  .picture_alloc = uvg_image_alloc_420,
+  .picture_alloc = uvg_image_alloc_420, // TODO YUV: Set according to sampling format
   .picture_free = uvg_image_free,
 
   .chunk_free = uvg_bitstream_free_chunks,

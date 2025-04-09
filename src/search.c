@@ -461,8 +461,8 @@ static void downsample_cclm_rec(encoder_state_t *state, int x, int y, int width,
   int x_scu = SUB_SCU(x);
   int y_scu = SUB_SCU(y);
   y_rec += x_scu + y_scu * LCU_WIDTH;
-  const int stride = state->tile->frame->rec->stride;
-  const int stride2 = (((state->tile->frame->width + 7) & ~7) + FRAME_PADDING_LUMA);
+  const int stride = state->tile->frame->rec->stride_luma;
+  const int stride2 = (((state->tile->frame->width + 7) & ~7) + FRAME_PADDING_LUMA); //TODO YUV: Check how it should work for 422 and 444. Fix all stride2 / 2 as they only work for 420
 
   for (int y_ = 0; y_ < height && y_ * 2 + y < state->tile->frame->height; y_++) {
     for (int x_ = 0; x_ < width; x_++) {
@@ -2296,13 +2296,13 @@ static void init_lcu_t(const encoder_state_t * const state, const int x, const i
     }
 
     // Use LMCS pixels for luma if they are available, otherwise source_lmcs is mapped to normal source
-    uvg_pixels_blit(&source[x + y * frame->source->stride], lcu->ref.y,
-                        x_max, y_max, frame->source->stride, LCU_WIDTH);
+    uvg_pixels_blit(&source[x + y * frame->source->stride_luma], lcu->ref.y,
+                        x_max, y_max, frame->source->stride_luma, LCU_WIDTH);
     if (state->encoder_control->chroma_format != UVG_CSP_400) {
-      uvg_pixels_blit(&frame->source->u[x_c + y_c * frame->source->stride / 2], lcu->ref.u,
-                      x_max_c, y_max_c, frame->source->stride / 2, LCU_WIDTH / 2);
-      uvg_pixels_blit(&frame->source->v[x_c + y_c * frame->source->stride / 2], lcu->ref.v,
-                      x_max_c, y_max_c, frame->source->stride / 2, LCU_WIDTH / 2);
+      uvg_pixels_blit(&frame->source->u[x_c + y_c * frame->source->stride_chroma], lcu->ref.u,
+                      x_max_c, y_max_c, frame->source->stride_chroma, LCU_WIDTH >> frame->source->chroma_scale_x);
+      uvg_pixels_blit(&frame->source->v[x_c + y_c * frame->source->stride_chroma], lcu->ref.v,
+                      x_max_c, y_max_c, frame->source->stride_chroma, LCU_WIDTH >> frame->source->chroma_scale_x);
     }
   }
 }
@@ -2329,20 +2329,33 @@ static void copy_lcu_to_cu_data(const encoder_state_t * const state, int x_px, i
     const int y_max = MIN(y_px + LCU_WIDTH, pic->height) - y_px;
 
     if(tree_type != UVG_CHROMA_T) {
-      uvg_pixels_blit(lcu->rec.y, &pic->rec->y[x_px + y_px * pic->rec->stride],
-                          x_max, y_max, LCU_WIDTH, pic->rec->stride);
+      uvg_pixels_blit(lcu->rec.y, &pic->rec->y[x_px + y_px * pic->rec->stride_luma],
+                          x_max, y_max, LCU_WIDTH, pic->rec->stride_luma);
     }
 
     if (state->tile->frame->lmcs_aps->m_sliceReshapeInfo.sliceReshaperEnableFlag) {
-      uvg_pixels_blit(lcu->rec.y, &pic->rec_lmcs->y[x_px + y_px * pic->rec->stride],
-        x_max, y_max, LCU_WIDTH, pic->rec->stride);
+      uvg_pixels_blit(lcu->rec.y, &pic->rec_lmcs->y[x_px + y_px * pic->rec->stride_luma],
+        x_max, y_max, LCU_WIDTH, pic->rec->stride_luma);
     }
 
     if (state->encoder_control->chroma_format != UVG_CSP_400 && tree_type != UVG_LUMA_T) {
-      uvg_pixels_blit(lcu->rec.u, &pic->rec->u[(x_px / 2) + (y_px / 2) * (pic->rec->stride / 2)],
-                      x_max / 2, y_max / 2, LCU_WIDTH / 2, pic->rec->stride / 2);
-      uvg_pixels_blit(lcu->rec.v, &pic->rec->v[(x_px / 2) + (y_px / 2) * (pic->rec->stride / 2)],
-                      x_max / 2, y_max / 2, LCU_WIDTH / 2, pic->rec->stride / 2);
+      uvg_pixels_blit(
+        lcu->rec.u,
+       	&pic->rec->u[(x_px >> pic->rec->chroma_scale_x) + (y_px >> pic->rec->chroma_scale_y) * (pic->rec->stride_chroma)],
+        x_max >> pic->rec->chroma_scale_x,
+       	y_max >> pic->rec->chroma_scale_y,
+       	LCU_WIDTH >> pic->rec->chroma_scale_x,
+       	pic->rec->stride_chroma
+      );
+
+      uvg_pixels_blit(
+        lcu->rec.v,
+       	&pic->rec->v[(x_px >> pic->rec->chroma_scale_x) + (y_px >> pic->rec->chroma_scale_y) * (pic->rec->stride_chroma)],
+        x_max >> pic->rec->chroma_scale_x,
+       	y_max >> pic->rec->chroma_scale_y,
+       	LCU_WIDTH >> pic->rec->chroma_scale_x,
+       	pic->rec->stride_chroma
+      );
     }
   }
 }
