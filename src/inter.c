@@ -1250,7 +1250,7 @@ static bool is_duplicate_candidate_ibc(const cu_info_t* cu1, const cu_info_t* cu
 static void get_ibc_merge_candidates(const encoder_state_t * const state,
                                      const cu_info_t * const cur_cu,
                                      lcu_t *lcu,
-                                     const cu_array_t *cua,
+                                     cu_array_t *cua,
                                      int32_t x,
                                      int32_t y,
                                      int32_t width,
@@ -1278,7 +1278,7 @@ static void get_ibc_merge_candidates(const encoder_state_t * const state,
 
   // A1 availability testing
   if (x != 0) {
-    a1 = lcu != NULL?LCU_GET_CU_AT_PX(lcu, x_local - 1, y_local + height - 1): uvg_cu_array_at_const(cua, x - 1, y + height - 1);
+    a1 = lcu != NULL?LCU_GET_CU_AT_PX(lcu, x_local - 1, y_local + height - 1): uvg_cu_array_at(cua, x - 1, y + height - 1);
     // Do not check a1->coded because the block above is always coded before
     // the current one and the flag is not set when searching an SMP block.
     if (a1->type == CU_IBC) {
@@ -1293,7 +1293,7 @@ static void get_ibc_merge_candidates(const encoder_state_t * const state,
 
   // B1 availability testing
   if (y != 0) {
-    b1 =  lcu != NULL?LCU_GET_CU_AT_PX(lcu, x_local + width - 1, y_local - 1): uvg_cu_array_at_const(cua, x + width - 1, y - 1);
+    b1 =  lcu != NULL?LCU_GET_CU_AT_PX(lcu, x_local + width - 1, y_local - 1): uvg_cu_array_at(cua, x + width - 1, y - 1);
     // Do not check b1->coded because the block to the left is always coded
     // before the current one and the flag is not set when searching an SMP
     // block.
@@ -1754,10 +1754,10 @@ void uvg_inter_get_mv_cand_cua(
 {
   merge_candidates_t merge_cand = { 0 };
 
-  const cu_array_t *cua = state->tile->frame->cu_array;
+  cu_array_t *cua = state->tile->frame->cu_array;
   if (cur_cu->type == CU_IBC) {
     mv_t ibc_mv_cand[IBC_MRG_MAX_NUM_CANDS][2];
-    get_ibc_merge_candidates(state, cur_cu, NULL,cua,cu_loc->x, cu_loc->y, cu_loc->width, cu_loc->height,ibc_mv_cand);
+    get_ibc_merge_candidates(state, cur_cu, NULL, cua, cu_loc->x, cu_loc->y, cu_loc->width, cu_loc->height, ibc_mv_cand);
     memcpy(mv_cand[0], ibc_mv_cand[0], sizeof(mv_t) * 2);
     memcpy(mv_cand[1], ibc_mv_cand[1], sizeof(mv_t) * 2);    
   } else {
