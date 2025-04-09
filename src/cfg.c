@@ -1356,6 +1356,7 @@ int uvg_config_parse(uvg_config *cfg, const char *name, const char *value)
     }
 
     cfg->input_format = formats[format];
+    cfg->input_format_str = format_names[format];
   }
   else if OPT("input-bitdepth") {
     cfg->input_bitdepth = atoi(value);
