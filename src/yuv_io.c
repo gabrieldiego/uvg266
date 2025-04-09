@@ -272,15 +272,15 @@ int yuv_io_read(FILE* file,
   ok = yuv_io_read_plane(
       file, 
       in_width, out_width, in_bitdepth,
-      img_out->stride, img_out->height, out_bitdepth,
+      img_out->stride_luma, img_out->height_luma, out_bitdepth,
       img_out->y);
   if (!ok) return 0;
 
   if (img_out->chroma_format != UVG_CSP_400) {
-    unsigned uv_width_in = in_width / 2;
-    unsigned uv_height_in = out_width / 2;
-    unsigned uv_width_out = img_out->stride / 2;
-    unsigned uv_height_out = img_out->height / 2;
+    unsigned uv_width_in = in_width >> img_out->chroma_scale_x; 
+    unsigned uv_height_in = out_width >> img_out->chroma_scale_y; // TODO YUV: Why is this out_width instead of in_height?
+    unsigned uv_width_out = img_out->stride_chroma;
+    unsigned uv_height_out = img_out->height_chroma;
 
     ok = yuv_io_read_plane(
         file,
@@ -372,18 +372,19 @@ int yuv_io_write(FILE* file,
                 const uvg_picture *img,
                 unsigned output_width, unsigned output_height)
 {
-  const int stride = img->stride;
   for (uint32_t y = 0; y < output_height; ++y) {
-    fwrite(&img->y[y * stride], sizeof(*img->y), output_width, file);
-    // TODO: Check that fwrite succeeded.
+    if(fwrite(&img->y[y * img->stride_luma], sizeof(*img->y), output_width, file) != output_width) {
+      fprintf(stderr, "Error while writting the YUV file.\n");
+      exit(-1);
+    }
   }
 
   if (img->chroma_format != UVG_CSP_400) {
     for (uint32_t y = 0; y < output_height / 2; ++y) {
-      fwrite(&img->u[y * stride / 2], sizeof(*img->u), output_width / 2, file);
+      fwrite(&img->u[y * img->stride_chroma], sizeof(*img->u), output_width >> img->chroma_scale_x, file);
     }
     for (uint32_t y = 0; y < output_height / 2; ++y) {
-      fwrite(&img->v[y * stride / 2], sizeof(*img->v), output_width / 2, file);
+      fwrite(&img->v[y * img->stride_chroma], sizeof(*img->v), output_width >> img->chroma_scale_x, file);
     }
   }
 

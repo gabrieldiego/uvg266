@@ -115,10 +115,9 @@ static void compute_psnr(const uvg_picture *const src,
                          const uvg_picture *const rec,
                          double psnr[3])
 {
-  assert(src->width  == rec->width);
-  assert(src->height == rec->height);
+  assert(src->width_luma  == rec->width_luma);
+  assert(src->height_luma == rec->height_luma);
 
-  int32_t pixels = src->width * src->height;
   int colors = rec->chroma_format == UVG_CSP_400 ? 1 : 3;
   double sse[3] = { 0.0 };
 
@@ -126,16 +125,24 @@ static void compute_psnr(const uvg_picture *const src,
 
     uvg_pixel* src_ptr = src->data[c];
     uvg_pixel* rec_ptr = rec->data[c];
-    int32_t width = src->width;
-    int32_t height = src->height;
-    int32_t stride = src->stride;
-    int32_t num_pixels = pixels;
+
+    int32_t width;
+    int32_t height;
+    int32_t stride;
+    int32_t num_pixels;
+
     if (c != COLOR_Y) {
-      width >>= 1;
-      height >>= 1;
-      stride >>= 1;
-      num_pixels >>= 2;
+      width = src->width_luma;
+      height = src->height_luma;
+      stride = src->stride_luma;
+      num_pixels = src->width_luma * src->height_luma;
+    } else {
+      width = src->width_chroma;
+      height = src->height_chroma;
+      stride = src->stride_chroma;
+      num_pixels = src->width_chroma * src->height_chroma;
     }
+
     for (int32_t y = 0; y < height; ++y) {
       for (int32_t x = 0; x < width; ++x) {
         const int32_t error = src_ptr[x] - rec_ptr[x];

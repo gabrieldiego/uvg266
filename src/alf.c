@@ -2619,17 +2619,17 @@ static void get_blk_stats_cc_alf(encoder_state_t * const state,
 {
   alf_info_t *alf_info = state->tile->frame->alf_info;
   enum uvg_chroma_format chroma_fmt = state->encoder_control->chroma_format;
-  bool chroma_scale_x = (chroma_fmt == UVG_CSP_444) ? 0 : 1;
-  bool chroma_scale_y = (chroma_fmt != UVG_CSP_420) ? 0 : 1;
+//  bool chroma_scale_x = (chroma_fmt == UVG_CSP_444) ? 0 : 1;
+//  bool chroma_scale_y = (chroma_fmt != UVG_CSP_420) ? 0 : 1;
 
   const int frame_height = state->tile->frame->height;
   const int alf_vb_luma_pos = LCU_WIDTH - ALF_VB_POS_ABOVE_CTUROW_LUMA;
   const int alf_vb_luma_ctu_height = LCU_WIDTH;
   const int max_cu_height = LCU_WIDTH;
-  const int x_pos_c = x_pos >> chroma_scale_x;
-  const int y_pos_c = y_pos >> chroma_scale_y;
-  const int c_width = width >> chroma_scale_x;
-  const int c_height = height >> chroma_scale_y;
+  const int x_pos_c = x_pos >> state->tile->frame->rec->chroma_scale_x;
+  const int y_pos_c = y_pos >> state->tile->frame->rec->chroma_scale_y;
+  const int c_width = width >> state->tile->frame->rec->chroma_scale_x;
+  const int c_height = height >> state->tile->frame->rec->chroma_scale_y;
 
   const int num_coeff = 8;
   const channel_type channel = (comp_id == COMPONENT_Y) ? CHANNEL_TYPE_LUMA : CHANNEL_TYPE_CHROMA;
@@ -2638,8 +2638,8 @@ static void get_blk_stats_cc_alf(encoder_state_t * const state,
   const int number_of_components = (chroma_format == UVG_CSP_400) ? 1 : MAX_NUM_COMPONENT;;
   int rec_stride[MAX_NUM_COMPONENT];
   int rec_pixel_idx[MAX_NUM_COMPONENT];
-  const int luma_rec_pos = y_pos * state->tile->frame->rec->stride + x_pos;
-  const int chroma_rec_pos = y_pos_c * (state->tile->frame->rec->stride >> chroma_scale_x) + x_pos_c;
+  const int luma_rec_pos = y_pos * state->tile->frame->rec->stride_luma + x_pos;
+  const int chroma_rec_pos = y_pos_c * state->tile->frame->rec->stride_chroma + x_pos_c;
   uvg_pixel *rec_y = &alf_info->alf_tmp_y[luma_rec_pos];
   uvg_pixel *rec_u = &alf_info->alf_tmp_u[chroma_rec_pos];
   uvg_pixel *rec_v = &alf_info->alf_tmp_v[chroma_rec_pos];
@@ -2647,7 +2647,7 @@ static void get_blk_stats_cc_alf(encoder_state_t * const state,
   for (int c_idx = 0; c_idx < number_of_components; c_idx++)
   {
     bool is_luma = c_idx == COMPONENT_Y;
-    rec_stride[c_idx] = state->tile->frame->rec->stride >> (is_luma ? 0 : chroma_scale_x);
+    rec_stride[c_idx] = is_luma ? state->tile->frame->rec->stride_luma : state->tile->frame->rec->stride_chroma;
     rec_pixel_idx[c_idx] = 0;
   }
 
@@ -2655,17 +2655,17 @@ static void get_blk_stats_cc_alf(encoder_state_t * const state,
   const uvg_pixel *org = 0;
   if (comp_id == COMPONENT_Y)
   {
-    org_stride = org_yuv->stride;
+    org_stride = org_yuv->stride_luma;
     org = &org_yuv->y[y_pos*org_stride + x_pos];
   }
   else if (comp_id == COMPONENT_Cb)
   {
-    org_stride = org_yuv->stride >> chroma_scale_x;
+    org_stride = org_yuv->stride_chroma;
     org = &org_yuv->u[y_pos_c*org_stride + x_pos_c];
   }
   else if (comp_id == COMPONENT_Cr)
   {
-    org_stride = org_yuv->stride >> chroma_scale_x;
+    org_stride = org_yuv->stride_chroma;
     org = &org_yuv->v[y_pos_c*org_stride + x_pos_c];
   }
 
@@ -3161,7 +3161,7 @@ static void alf_create_frame_buffer(encoder_state_t * const state, alf_info_t *a
     const size_t simd_padding_width = 64;
     int width = state->tile->frame->width;
     int height = state->tile->frame->height;
-    int stride = state->tile->frame->source->stride;
+    int32_t stride_chroma = state->tile->frame->source->stride_chroma;
     unsigned int luma_size = (width + 8) * (height + 8);
     unsigned chroma_sizes[] = { 0, luma_size / 4, luma_size / 2, luma_size };
     unsigned chroma_size = chroma_sizes[chroma_format];
@@ -3175,8 +3175,8 @@ static void alf_create_frame_buffer(encoder_state_t * const state, alf_info_t *a
       alf_info->alf_tmp_v = NULL;
     }
     else {
-      alf_info->alf_tmp_u = &alf_info->alf_fulldata[luma_size - (4 * (width + 8) + 4) + (2 * (stride / 2) + 2)];
-      alf_info->alf_tmp_v = &alf_info->alf_fulldata[luma_size - (4 * (width + 8) + 4) + chroma_size + (2 * (stride / 2) + 2)];
+      alf_info->alf_tmp_u = &alf_info->alf_fulldata[luma_size - (4 * (width + 8) + 4) + (2 * (stride_chroma) + 2)];
+      alf_info->alf_tmp_v = &alf_info->alf_fulldata[luma_size - (4 * (width + 8) + 4) + chroma_size + (2 * (stride_chroma) + 2)];
     }
   }
 
@@ -4300,8 +4300,8 @@ static void alf_derive_stats_for_filtering(encoder_state_t * const state,
         int pos_x = is_luma ? x_pos : x_pos >> chroma_scale_x;
         int pos_y = is_luma ? y_pos : y_pos >> chroma_scale_y;
 
-        int32_t org_stride = is_luma ? state->tile->frame->source->stride : state->tile->frame->source->stride >> chroma_scale_x;
-        int32_t rec_stride = is_luma ? state->tile->frame->rec->stride : state->tile->frame->rec->stride >> chroma_scale_x;
+        int32_t org_stride = is_luma ? state->tile->frame->source->stride_luma : state->tile->frame->source->stride_chroma;
+        int32_t rec_stride = is_luma ? state->tile->frame->rec->stride_luma : state->tile->frame->rec->stride_chroma;
 
         uvg_pixel *org = comp_idx ? (comp_idx - 1 ? &state->tile->frame->source->v[pos_x + pos_y * org_stride] : &state->tile->frame->source->u[pos_x + pos_y * org_stride]) : &state->tile->frame->source->y[pos_x + pos_y * org_stride];
         uvg_pixel *rec = comp_idx ? (comp_idx - 1 ? &state->tile->frame->rec->v[pos_x + pos_y * rec_stride] : &state->tile->frame->rec->u[pos_x + pos_y * rec_stride]) : &state->tile->frame->rec->y[pos_x + pos_y * rec_stride];
@@ -5042,8 +5042,8 @@ static void alf_reconstruct(encoder_state_t * const state,
   alf_info_t *alf_info = state->tile->frame->alf_info;
   bool **ctu_enable_flags = alf_info->ctu_enable_flag;
   enum uvg_chroma_format chroma_fmt = state->encoder_control->chroma_format;
-  bool chroma_scale_x = (chroma_fmt == UVG_CSP_444) ? 0 : 1;
-  bool chroma_scale_y = (chroma_fmt != UVG_CSP_420) ? 0 : 1;
+//  bool chroma_scale_x = (chroma_fmt == UVG_CSP_444) ? 0 : 1;
+//  bool chroma_scale_y = (chroma_fmt != UVG_CSP_420) ? 0 : 1;
 
   const int alf_vb_luma_ctu_height = LCU_WIDTH;
   const int alf_vb_chma_ctu_height = (LCU_WIDTH >> ((chroma_fmt == UVG_CSP_420) ? 1 : 0));
@@ -5056,10 +5056,10 @@ static void alf_reconstruct(encoder_state_t * const state,
 
   int ctu_idx = 0;
 
-  const int luma_stride = state->tile->frame->rec->stride;
-  const int chroma_stride = luma_stride >> chroma_scale_x;
-  const int chroma_height = luma_height >> chroma_scale_y;
-  const int chroma_padding = MAX_ALF_PADDING_SIZE >> chroma_scale_x;
+  const int32_t luma_stride = state->tile->frame->rec->stride_luma;
+  const int32_t chroma_stride = state->tile->frame->rec->stride_chroma;
+  const int chroma_height = luma_height >> state->tile->frame->rec->chroma_scale_y;
+  const int chroma_padding = MAX_ALF_PADDING_SIZE >> state->tile->frame->rec->chroma_scale_x;
 
   const int index_luma = -(luma_stride * MAX_ALF_PADDING_SIZE + MAX_ALF_PADDING_SIZE);
   const int index_chroma = -(chroma_stride * chroma_padding + chroma_padding);
@@ -5123,9 +5123,9 @@ static void alf_reconstruct(encoder_state_t * const state,
               src_pixels, dst_pixels,
               chroma_stride, chroma_stride,
               arr_vars->chroma_coeff_final[alt_num], arr_vars->chroma_clipp_final[alt_num], arr_vars->clp_rngs.comp[comp_idx],
-              width >> chroma_scale_x, height >> chroma_scale_y,
-              x_pos >> chroma_scale_x, y_pos >> chroma_scale_y,
-              x_pos >> chroma_scale_x, y_pos >> chroma_scale_y,
+              width >> state->tile->frame->rec->chroma_scale_x, height >> state->tile->frame->rec->chroma_scale_y,
+              x_pos >> state->tile->frame->rec->chroma_scale_x, y_pos >> state->tile->frame->rec->chroma_scale_y,
+              x_pos >> state->tile->frame->rec->chroma_scale_x, y_pos >> state->tile->frame->rec->chroma_scale_y,
               alf_vb_chma_pos, alf_vb_chma_ctu_height);
           }
         }
@@ -5144,35 +5144,39 @@ static void alf_derive_classification(encoder_state_t * const state,
   const int blk_dst_y)
 {
   enum uvg_chroma_format chroma_fmt = state->encoder_control->chroma_format;
-  bool chroma_scale_x = (chroma_fmt == UVG_CSP_444) ? 0 : 1;
-  bool chroma_scale_y = (chroma_fmt != UVG_CSP_420) ? 0 : 1;
+//  bool chroma_scale_x = (chroma_fmt == UVG_CSP_444) ? 0 : 1;
+//  bool chroma_scale_y = (chroma_fmt != UVG_CSP_420) ? 0 : 1;
 
   const int alf_vb_luma_ctu_height = LCU_WIDTH;
   const int alf_vb_luma_pos = LCU_WIDTH - ALF_VB_POS_ABOVE_CTUROW_LUMA;
-  int32_t pic_height = state->tile->frame->rec->height;
-  int32_t pic_width = state->tile->frame->rec->width;
-
+  int32_t pic_height_luma = state->tile->frame->rec->height_luma;
+  int32_t pic_width_luma = state->tile->frame->rec->width_luma;
+  int32_t pic_height_chroma = state->tile->frame->rec->height_chroma;
+  int32_t pic_width_chroma = state->tile->frame->rec->width_chroma;
+  
   int max_height = y_pos + height;
   int max_width = x_pos + width;
 
-  adjust_pixels(state->tile->frame->rec->y, x_pos, pic_width, y_pos, pic_height, state->tile->frame->rec->stride,
-    pic_width, pic_height);
+  adjust_pixels(state->tile->frame->rec->y, x_pos, pic_width_luma, y_pos, pic_height_luma, state->tile->frame->rec->stride_luma,
+    pic_width_luma, pic_height_luma);
+
   adjust_pixels_chroma(state->tile->frame->rec->u,
-    x_pos >> chroma_scale_x,
-    pic_width >> chroma_scale_x,
-    y_pos >> chroma_scale_y,
-    pic_height >> chroma_scale_y,
-    state->tile->frame->rec->stride >> chroma_scale_x,
-    pic_width >> chroma_scale_x,
-    pic_height >> chroma_scale_y);
+    x_pos >> state->tile->frame->rec->chroma_scale_x,
+    pic_width_chroma,
+    y_pos >> state->tile->frame->rec->chroma_scale_y,
+    pic_height_chroma,
+    state->tile->frame->rec->stride_chroma,
+    pic_width_chroma,
+    pic_height_chroma);
+
   adjust_pixels_chroma(state->tile->frame->rec->v,
-    x_pos >> chroma_scale_x,
-    pic_width >> chroma_scale_x,
-    y_pos >> chroma_scale_y,
-    pic_height >> chroma_scale_y,
-    state->tile->frame->rec->stride >> chroma_scale_x,
-    pic_width >> chroma_scale_x,
-    pic_height >> chroma_scale_y);
+    x_pos >> state->tile->frame->rec->chroma_scale_x,
+    pic_width_chroma,
+    y_pos >> state->tile->frame->rec->chroma_scale_y,
+    pic_height_chroma,
+    state->tile->frame->rec->stride_chroma,
+    pic_width_chroma,
+    pic_height_chroma);
 
   for (int i = y_pos; i < max_height; i += CLASSIFICATION_BLK_SIZE)
   {
@@ -5390,10 +5394,10 @@ void uvg_alf_enc_process(encoder_state_t *const state)
   const uvg_picture *org_yuv = state->tile->frame->source;
   const uvg_picture *rec_yuv = state->tile->frame->rec;
 
-  const int luma_stride = state->tile->frame->rec->stride;
-  const int chroma_stride = luma_stride >> chroma_scale_x;
-  const int chroma_height = luma_height >> chroma_scale_y;
-  const int chroma_padding = MAX_ALF_PADDING_SIZE >> chroma_scale_x;
+  const int32_t luma_stride = rec_yuv->stride_luma;
+  const int32_t chroma_stride = rec_yuv->stride_chroma;
+  const int32_t chroma_height = luma_height >> rec_yuv->chroma_scale_y;
+  const int32_t chroma_padding = MAX_ALF_PADDING_SIZE >> rec_yuv->chroma_scale_x;
 
   const int index_chroma = -(chroma_stride * chroma_padding + chroma_padding);
 
@@ -5405,20 +5409,23 @@ void uvg_alf_enc_process(encoder_state_t *const state)
 
   adjust_pixels_chroma(alf_info->alf_tmp_u,
     0,
-    rec_yuv->width >> chroma_scale_x,
+    rec_yuv->width_chroma,
     0,
-    rec_yuv->height >> chroma_scale_y,
-    rec_yuv->stride >> chroma_scale_x,
-    rec_yuv->width >> chroma_scale_x,
-    rec_yuv->height >> chroma_scale_y);
+    rec_yuv->height_chroma,
+    rec_yuv->stride_chroma,
+    rec_yuv->width_chroma,
+    rec_yuv->height_chroma
+  );
+
   adjust_pixels_chroma(alf_info->alf_tmp_v,
     0,
-    rec_yuv->width >> chroma_scale_x,
+    rec_yuv->width_chroma,
     0,
-    rec_yuv->height >> chroma_scale_y,
-    rec_yuv->stride >> chroma_scale_x,
-    rec_yuv->width >> chroma_scale_x,
-    rec_yuv->height >> chroma_scale_y);
+    rec_yuv->height_chroma,
+    rec_yuv->stride_chroma,
+    rec_yuv->width_chroma,
+    rec_yuv->height_chroma
+  );
 
   const int num_ctus_in_width = state->tile->frame->width_in_lcu;
   derive_stats_for_cc_alf_filtering(state, org_yuv, COMPONENT_Cb, num_ctus_in_width, (0 + 1));
@@ -5437,7 +5444,7 @@ void uvg_alf_enc_process(encoder_state_t *const state)
     if (cc_filter_param->cc_alf_filter_enabled[comp_idx - 1])
     {
       uvg_pixel* rec_uv = comp_idx == COMPONENT_Cb ? rec_yuv->u : rec_yuv->v;
-      const int luma_stride = rec_yuv->stride;
+      const int luma_stride = rec_yuv->stride_luma;
       apply_cc_alf_filter(state, comp_idx, rec_uv, alf_info->alf_tmp_y, luma_stride, alf_info->cc_alf_filter_control[comp_idx - 1],
         cc_filter_param->cc_alf_coeff[comp_idx - 1], -1, &arr_vars);
     }

@@ -1863,10 +1863,10 @@ void uvg_search_cu_intra(
         int height = (cu_loc->height) * 2 + MAX_REF_LINE_IDX;
         height = MIN(height, (LCU_WIDTH - lcu_px.y + MAX_REF_LINE_IDX)); // Cut short if on bottom LCU edge. Cannot take references from below since they don't exist.
         height = MIN(height, pic_px.y - luma_px.y + MAX_REF_LINE_IDX);
-        uvg_pixels_blit(&frame->rec->y[(luma_px.y - MAX_REF_LINE_IDX) * frame->rec->stride + luma_px.x - (1 + i)],
+        uvg_pixels_blit(&frame->rec->y[(luma_px.y - MAX_REF_LINE_IDX) * frame->rec->stride_luma + luma_px.x - (1 + i)],
           &extra_refs[i * 128],
           1, height,
-          frame->rec->stride, 1);
+          frame->rec->stride_luma, 1);
       }
     }
     uvg_intra_build_reference(state, cu_loc, cu_loc, COLOR_Y, &luma_px, &pic_px, lcu, &refs[line], state->encoder_control->cfg.wpp, extra_refs, line, 0);

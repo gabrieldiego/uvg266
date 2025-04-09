@@ -67,7 +67,7 @@ static void alf_derive_classification_blk_generic(encoder_state_t * const state,
   memset(laplacian, 0, sizeof(laplacian));
   alf_classifier **classifier = state->tile->frame->alf_info->classifier;
 
-  const int stride = frame->rec->stride;
+  const int stride = frame->rec->stride_luma;
   uvg_pixel *src = state->tile->frame->rec->y;
   const int max_activity = 15;
 

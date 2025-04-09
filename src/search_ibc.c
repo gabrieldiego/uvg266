@@ -145,22 +145,22 @@ static uint32_t calculate_ibc_cost_satd(const encoder_state_t *state, lcu_t* lcu
                            width,
                            lcu->rec.y + offset,
                            LCU_WIDTH,
-                           &state->tile->frame->source->y[y * state->tile->frame->source->stride + x],
-                           state->tile->frame->source->stride) >> (UVG_BIT_DEPTH - 8);
+                           &state->tile->frame->source->y[y * state->tile->frame->source->stride_luma + x],
+                           state->tile->frame->source->stride_luma) >> (UVG_BIT_DEPTH - 8);
 
   if(state->encoder_control->chroma_format != UVG_CSP_400) {    
-    cost += uvg_satd_any_size(width / 2,
-                              width / 2,
+    cost += uvg_satd_any_size(width >> state->tile->frame->source->chroma_scale_x,
+                              width >> state->tile->frame->source->chroma_scale_x,
                               lcu->rec.u + offset_c,
                               LCU_WIDTH_C,
-                              &state->tile->frame->source->u[(y / 2) * (state->tile->frame->source->stride / 2) + (x / 2)],
-                              state->tile->frame->source->stride / 2) >> (UVG_BIT_DEPTH - 8);
-    cost += uvg_satd_any_size(width / 2,
-                              width / 2,
+                              &state->tile->frame->source->u[(y >> state->tile->frame->source->chroma_scale_y) * (state->tile->frame->source->stride_chroma) + (x >> state->tile->frame->source->chroma_scale_x)],
+                              state->tile->frame->source->stride_chroma) >> (UVG_BIT_DEPTH - 8);
+    cost += uvg_satd_any_size(width >> state->tile->frame->source->chroma_scale_x,
+                              width >> state->tile->frame->source->chroma_scale_x,
                               lcu->rec.v + offset_c,
                               LCU_WIDTH_C,
-                              &state->tile->frame->source->v[(y / 2) * (state->tile->frame->source->stride / 2) + (x / 2)],
-                              state->tile->frame->source->stride / 2) >> (UVG_BIT_DEPTH - 8);
+                              &state->tile->frame->source->v[(y >> state->tile->frame->source->chroma_scale_y) * (state->tile->frame->source->stride_chroma) + (x >> state->tile->frame->source->chroma_scale_x)],
+                              state->tile->frame->source->stride_chroma) >> (UVG_BIT_DEPTH - 8);
   }
 
   return cost;
@@ -200,9 +200,22 @@ static uint32_t calculate_ibc_cost_sad(ibc_search_info_t *info, const cu_loc_t* 
   *cur_cu = cu_backup;
 
   if (info->optimized_sad_y != NULL) {
-    cost = info->optimized_sad_y(lcu->rec.y + offset, &state->tile->frame->source->y[y * state->tile->frame->source->stride + x], width, LCU_WIDTH, state->tile->frame->source->stride);
+    cost = info->optimized_sad_y(
+             lcu->rec.y + offset,
+	     &state->tile->frame->source->y[y * state->tile->frame->source->stride_luma + x],
+	     width,
+	     LCU_WIDTH,
+	     state->tile->frame->source->stride_luma
+	   );
   } else {
-    cost = uvg_reg_sad(lcu->rec.y + offset, &state->tile->frame->source->y[y * state->tile->frame->source->stride + x], width,width, LCU_WIDTH, state->tile->frame->source->stride);
+    cost = uvg_reg_sad(
+             lcu->rec.y + offset,
+	     &state->tile->frame->source->y[y * state->tile->frame->source->stride_luma + x],
+	     width,
+	     width,
+	     LCU_WIDTH,
+	     state->tile->frame->source->stride_luma
+	   );
   }
 
   // ToDo: Enable chroma cost calculation

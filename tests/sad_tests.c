@@ -89,17 +89,18 @@ static struct sad_test_env_t {
 // SETUP, TEARDOWN AND HELPER FUNCTIONS
 static void setup_tests()
 {
+  //TODO YUV: This is only implemented for YUV420
   g_pic = uvg_image_alloc(UVG_CSP_420, 8, 8);
   for (int y = 0; y < 8; ++y) {
     for (int x = 0; x < 8; ++x) {
-      g_pic->y[y*g_pic->stride + x] = pic_data[8*y + x] + 48;
+      g_pic->y[y*g_pic->stride_luma + x] = pic_data[8*y + x] + 48;
     }
   }
 
   g_ref = uvg_image_alloc(UVG_CSP_420, 8, 8);
   for (int y = 0; y < 8; ++y) {
     for (int x = 0; x < 8; ++x) {
-      g_ref->y[y*g_ref->stride + x] = ref_data[8*y + x] + 48;
+      g_ref->y[y*g_ref->stride_luma + x] = ref_data[8*y + x] + 48;
     }
   }
 
@@ -108,7 +109,7 @@ static void setup_tests()
   for (int y = 0; y < 64; ++y) {
     for (int x = 0; x < 64; ++x) {
       i = ((64 * y) + x);
-      g_big_pic->y[y*g_big_pic->stride + x] = (i*i / 32 + i) % 255;
+      g_big_pic->y[y*g_big_pic->stride_luma + x] = (i*i / 32 + i) % 255;
     }
   }
 
@@ -117,7 +118,7 @@ static void setup_tests()
   for (int y = 0; y < 64; ++y) {
     for (int x = 0; x < 64; ++x) {
       i = ((64 * y) + x);
-      g_big_ref->y[y*g_big_ref->stride + x] = (i*i / 16 + i) % 255;
+      g_big_ref->y[y*g_big_ref->stride_luma + x] = (i*i / 16 + i) % 255;
     }
   }
 

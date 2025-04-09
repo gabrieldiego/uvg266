@@ -359,7 +359,7 @@ static double pic_allocate_bits(encoder_state_t * const state)
     int total_cost = 0;
     for (int y = 0; y < encoder->cfg.height; y += 8) {
       for (int x = 0; x < encoder->cfg.width; x += 8) {
-        int cost = xCalcHADs8x8_ISlice(state->tile->frame->source->y + x, y, state->tile->frame->source->stride);
+        int cost = xCalcHADs8x8_ISlice(state->tile->frame->source->y + x, y, state->tile->frame->source->stride_luma);
         total_cost += cost;
         uvg_get_lcu_stats(state, x / 64, y / 64)->i_cost += cost;
       }
