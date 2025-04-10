@@ -68,8 +68,7 @@ uvg_picture * uvg_image_alloc(enum uvg_chroma_format chroma_format, const int32_
   //This results also 2 pixel boundary for chroma
   unsigned int luma_size = (width + FRAME_PADDING_LUMA) * (height + FRAME_PADDING_LUMA);
 
-  unsigned chroma_sizes[] = { 0, luma_size / 4, luma_size / 2, luma_size };
-  unsigned chroma_size = chroma_sizes[chroma_format];
+  unsigned chroma_size = luma_size >> (im->chroma_scale_x + im->chroma_scale_y);
 
   int chroma_scale_x[] = {0, 1, 1, 0}; 
   int chroma_scale_y[] = {0, 1, 0, 0}; 
