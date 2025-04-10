@@ -549,7 +549,8 @@ int main(int argc, char *argv[])
   fprintf(stderr, "  Video size: %dx%d (input=%dx%d)\n",
          encoder->in.width, encoder->in.height,
          encoder->in.real_width, encoder->in.real_height);
-  fprintf(stderr, "  Input format: %s\n", opts->config->input_format_str);
+  static const char * const format_names[] = { "P400", "P420", "P422", "P444", NULL };
+  fprintf(stderr, "  Input format: %s\n", format_names[opts->config->input_format]);
 
   if (opts->seek > 0 && !yuv_io_seek(input, opts->seek, opts->config->width, opts->config->height, opts->config->input_bitdepth, opts->config->file_format)) {
     fprintf(stderr, "Failed to seek %d frames.\n", opts->seek);

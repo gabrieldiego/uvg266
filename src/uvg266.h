@@ -404,7 +404,6 @@ typedef struct uvg_config
   int32_t rdoq_skip; /*!< \brief Mode of rdoq skip */
 
   enum uvg_input_format input_format; /*!< \brief Use Temporal Motion Vector Predictors. */
-  const char *input_format_str;
 
   int32_t input_bitdepth; /*!< \brief Use Temporal Motion Vector Predictors. */
 
