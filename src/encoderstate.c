@@ -261,7 +261,7 @@ static void encoder_state_recdata_to_bufs(encoder_state_t * const state,
   if (state->encoder_control->cfg.ibc) {
 
     uint32_t ibc_buffer_pos_x = lcu->position_px.x + LCU_WIDTH >= IBC_BUFFER_WIDTH ? IBC_BUFFER_WIDTH - LCU_WIDTH: lcu->position_px.x;
-    uint32_t ibc_buffer_pos_x_c = ibc_buffer_pos_x >> 1;
+    uint32_t ibc_buffer_pos_x_c = ibc_buffer_pos_x >> frame->rec->chroma_scale_x;
     uint32_t ibc_buffer_row     = lcu->position_px.y / LCU_WIDTH;
 
     // If the buffer is full shift all the lines LCU_WIDTH left
@@ -500,25 +500,25 @@ static void encoder_sao_reconstruct(const encoder_state_t *const state,
 
       if (state->encoder_control->chroma_format != UVG_CSP_400) {
         // Coordinates in chroma pixels.
-        int x_c = x >> 1;
-        int y_c = y >> 1;
+        int x_c = x >> frame->rec->chroma_scale_x;
+        int y_c = y >> frame->rec->chroma_scale_y;
 
         uvg_sao_reconstruct(state,
                             &sao_buf_u[x_c + y_c * SAO_BUF_WIDTH_C],
                             SAO_BUF_WIDTH_C,
-                            lcu->position_px.x / 2 + x_c,
-                            lcu->position_px.y / 2 + y_c,
-                            width / 2,
-                            height / 2,
+                            (lcu->position_px.x >> frame->rec->chroma_scale_x) + x_c,
+                            (lcu->position_px.y >> frame->rec->chroma_scale_y) + y_c,
+                            width >> frame->rec->chroma_scale_x,
+                            height >> frame->rec->chroma_scale_y,
                             sao_chroma,
                             COLOR_U);
         uvg_sao_reconstruct(state,
                             &sao_buf_v[x_c + y_c * SAO_BUF_WIDTH_C],
                             SAO_BUF_WIDTH_C,
-                            lcu->position_px.x / 2 + x_c,
-                            lcu->position_px.y / 2 + y_c,
-                            width / 2,
-                            height / 2,
+                            (lcu->position_px.x >> frame->rec->chroma_scale_x) + x_c,
+                            (lcu->position_px.y >> frame->rec->chroma_scale_y) + y_c,
+                            width >> frame->rec->chroma_scale_x,
+                            height >> frame->rec->chroma_scale_y,
                             sao_chroma,
                             COLOR_V);
       }
@@ -649,8 +649,8 @@ static void set_cu_qps(encoder_state_t *state, const cu_loc_t* const cu_loc, int
 
   if (cu_loc->width > width) {
     // Recursively process sub-CUs.
-    const int half_width = cu_loc->width >> 1;
-    const int half_height = cu_loc->height >> 1;
+    const int half_width = cu_loc->width >> state->tile->frame->source->chroma_scale_x;
+    const int half_height = cu_loc->height >> state->tile->frame->source->chroma_scale_y;
     cu_loc_t split_cu_loc;
     uvg_cu_loc_ctor(&split_cu_loc, cu_loc->x, cu_loc->y, half_width, half_height);
     set_cu_qps(state, &split_cu_loc,     last_qp,     prev_qp, depth + 1);
@@ -1854,7 +1854,7 @@ static void encoder_state_init_new_frame(encoder_state_t * const state, uvg_pict
           int32_t c_stride = state->tile->frame->source->stride_chroma;
           uvg_pixel chromau_tmp[LCU_CHROMA_SIZE];
           uvg_pixel chromav_tmp[LCU_CHROMA_SIZE];
-          int lcu_chroma_width = LCU_WIDTH >> 1;
+          int lcu_chroma_width = LCU_WIDTH >> state->tile->frame->source->chroma_scale_x;
           int c_pxl_x = x * lcu_chroma_width;
           int c_pxl_y = y * lcu_chroma_width;
           int c_x_max = MIN(c_pxl_x + lcu_chroma_width, frame->width_chroma) - c_pxl_x;
