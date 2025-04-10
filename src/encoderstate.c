@@ -649,8 +649,8 @@ static void set_cu_qps(encoder_state_t *state, const cu_loc_t* const cu_loc, int
 
   if (cu_loc->width > width) {
     // Recursively process sub-CUs.
-    const int half_width = cu_loc->width >> state->tile->frame->source->chroma_scale_x;
-    const int half_height = cu_loc->height >> state->tile->frame->source->chroma_scale_y;
+    const int half_width = cu_loc->width >> 1;
+    const int half_height = cu_loc->height >> 1;
     cu_loc_t split_cu_loc;
     uvg_cu_loc_ctor(&split_cu_loc, cu_loc->x, cu_loc->y, half_width, half_height);
     set_cu_qps(state, &split_cu_loc,     last_qp,     prev_qp, depth + 1);
