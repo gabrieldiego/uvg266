@@ -131,7 +131,7 @@ static void compute_psnr(const uvg_picture *const src,
     int32_t stride;
     int32_t num_pixels;
 
-    if (c != COLOR_Y) {
+    if (c == COLOR_Y) {
       width = src->width_luma;
       height = src->height_luma;
       stride = src->stride_luma;
