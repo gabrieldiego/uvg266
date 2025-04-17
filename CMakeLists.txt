@@ -31,6 +31,10 @@ if(ENABLE_AVX2)
   endif()
 endif()
 
+if(INSTRUMENTATION)
+  add_definitions(-DINSTRUMENTATION)
+endif()
+
 set(UVG266_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}" CACHE PATH "uvg266 library install path")
 set(UVG266_INSTALL_BINDIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH "uvg266 binary install path")
 set(UVG266_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}" CACHE PATH "uvg266 include install path")

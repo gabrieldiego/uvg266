@@ -43,7 +43,7 @@
 #include <getopt.h>
 #include <ctype.h>
 
-static const char short_options[] = "i:o:d:n:q:p:r:";
+static const char short_options[] = "i:o:d:n:q:p:r:t";
 static const struct option long_options[] = {
   { "input",              required_argument, NULL, 'i' },
   { "output",             required_argument, NULL, 'o' },
@@ -52,6 +52,7 @@ static const struct option long_options[] = {
   { "qp",                 required_argument, NULL, 'q' },
   { "period",             required_argument, NULL, 'p' },
   { "ref",                required_argument, NULL, 'r' },
+  { "instrumentation",          no_argument, NULL, 't' },
   { "vps-period",         required_argument, NULL, 0 },
   { "input-res",          required_argument, NULL, 0 },
   { "input-fps",          required_argument, NULL, 0 },
@@ -341,6 +342,8 @@ cmdline_opts_t* cmdline_opts_parse(const uvg_api *const api, int argc, char *arg
       goto done;
     } else if (!strcmp(name, "loop-input")) {
       opts->loop_input = true;
+    } else if (!strcmp(name, "instrumentation")) {
+      opts->instrumentation = true;
     } else if (!api->config_parse(opts->config, name, optarg)) {
       fprintf(stderr, "invalid argument: %s=%s\n", name, optarg);
       ok = 0;
@@ -479,6 +482,7 @@ void print_help(void)
     "                               written unless the prefix is defined.\n"
     "      --cabac-debug-file     : A debug file for cabac context.\n"
     "                               Ignore this, it is only for tests.\n"
+    "  -t, --instrumentation      : Enable instrumentation. [disabled]\n"
     "\n"
     /* Word wrap to this width to stay under 80 characters (including ") *************/
     "Video structure:\n"
